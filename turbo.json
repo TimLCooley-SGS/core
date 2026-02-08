@@ -3,7 +3,16 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**"]
+      "outputs": ["dist/**", ".next/**"],
+      "env": [
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+        "CONTROL_PLANE_SUPABASE_URL",
+        "CONTROL_PLANE_SUPABASE_ANON_KEY",
+        "CONTROL_PLANE_SUPABASE_SERVICE_KEY",
+        "SUPABASE_ORG_ID",
+        "SUPABASE_ACCESS_TOKEN"
+      ]
     },
     "typecheck": {
       "dependsOn": ["^build"]
