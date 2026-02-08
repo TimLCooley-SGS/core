@@ -7,26 +7,22 @@
   "engines": {
     "node": ">=20.0.0"
   },
+  "packageManager": "pnpm@9.15.4",
   "scripts": {
-    "build": "tsc",
-    "dev": "tsx watch src/index.ts",
-    "lint": "eslint src/",
-    "typecheck": "tsc --noEmit",
-    "migrate:control-plane": "tsx src/scripts/migrate-control-plane.ts",
-    "migrate:tenant": "tsx src/scripts/migrate-tenant.ts",
-    "provision:org": "tsx src/scripts/provision-org.ts",
-    "seed:capabilities": "tsx src/scripts/seed-capabilities.ts"
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.49.0",
-    "dotenv": "^16.4.0",
-    "pg": "^8.13.0",
-    "zod": "^3.24.0"
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "dev:core": "turbo dev --filter=@sgscore/core",
+    "dev:pos": "turbo dev --filter=@sgscore/pos",
+    "lint": "turbo lint",
+    "typecheck": "turbo typecheck",
+    "migrate:control-plane": "tsx infrastructure/scripts/migrate-control-plane.ts",
+    "migrate:tenant": "tsx infrastructure/scripts/migrate-tenant.ts",
+    "provision:org": "tsx infrastructure/scripts/provision-org.ts",
+    "manage:org": "tsx infrastructure/scripts/manage-org.ts",
+    "seed:capabilities": "tsx infrastructure/scripts/seed-capabilities.ts"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "@types/pg": "^8.11.0",
-    "tsx": "^4.19.0",
+    "turbo": "^2.3.0",
     "typescript": "^5.7.0"
   }
 }

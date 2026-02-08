@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* SGS Core CRM branding — Space Cadet / Rebecca Purple */
+    --color-background: #faf8fc;
+    --color-foreground: #1a1025;
+    --color-card: #ffffff;
+    --color-card-foreground: #1a1025;
+    --color-primary: #702b9e;
+    --color-primary-foreground: #ffffff;
+    --color-secondary: #f0e6f6;
+    --color-secondary-foreground: #4e2c70;
+    --color-muted: #f5f0f9;
+    --color-muted-foreground: #6b5a7d;
+    --color-accent: #9b59b6;
+    --color-accent-foreground: #ffffff;
+    --color-destructive: #ef4444;
+    --color-destructive-foreground: #ffffff;
+    --color-border: #e2d8ec;
+    --color-input: #e2d8ec;
+    --color-ring: #702b9e;
+    --font-heading: "PT Serif", serif;
+    --font-body: "Open Sans", sans-serif;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-body);
+  }
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+  }
+}

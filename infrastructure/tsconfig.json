@@ -1,0 +1,9 @@
+{
+  "extends": "@sgscore/config/tsconfig/base.json",
+  "compilerOptions": {
+    "rootDir": "scripts",
+    "outDir": "dist",
+    "noEmit": true
+  },
+  "include": ["scripts/**/*.ts"]
+}

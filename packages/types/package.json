@@ -1,0 +1,16 @@
+{
+  "name": "@sgscore/types",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./control-plane": "./src/control-plane.ts",
+    "./tenant": "./src/tenant.ts",
+    "./theme": "./src/theme.ts",
+    "./api": "./src/api.ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}

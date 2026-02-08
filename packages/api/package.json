@@ -1,0 +1,20 @@
+{
+  "name": "@sgscore/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./config": "./src/config.ts",
+    "./permissions": "./src/permissions.ts"
+  },
+  "dependencies": {
+    "@sgscore/types": "workspace:*",
+    "@supabase/supabase-js": "^2.49.0",
+    "dotenv": "^16.4.0",
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0"
+  }
+}
