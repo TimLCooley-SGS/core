@@ -11,7 +11,9 @@
         "CONTROL_PLANE_SUPABASE_ANON_KEY",
         "CONTROL_PLANE_SUPABASE_SERVICE_KEY",
         "SUPABASE_ORG_ID",
-        "SUPABASE_ACCESS_TOKEN"
+        "SUPABASE_ACCESS_TOKEN",
+        "SENDGRID_API_KEY",
+        "SENDGRID_FROM_EMAIL"
       ]
     },
     "typecheck": {

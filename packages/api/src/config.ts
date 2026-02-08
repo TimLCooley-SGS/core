@@ -9,6 +9,8 @@ const envSchema = z.object({
   SUPABASE_ACCESS_TOKEN: z.string().min(1),
   SUPABASE_ORG_ID: z.string().min(1),
   SUPABASE_DB_PASSWORD: z.string().min(1),
+  SENDGRID_API_KEY: z.string().min(1).optional(),
+  SENDGRID_FROM_EMAIL: z.string().email().optional(),
   NODE_ENV: z
     .enum(["development", "production", "test"])
     .default("development"),

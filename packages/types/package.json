@@ -8,7 +8,8 @@
     "./control-plane": "./src/control-plane.ts",
     "./tenant": "./src/tenant.ts",
     "./theme": "./src/theme.ts",
-    "./api": "./src/api.ts"
+    "./api": "./src/api.ts",
+    "./email": "./src/email.ts"
   },
   "devDependencies": {
     "typescript": "^5.7.0"

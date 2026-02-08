@@ -27,3 +27,10 @@ export {
   hasAnyCapability,
   hasAllCapabilities,
 } from "./permissions";
+
+export {
+  sendEmail,
+  sendDonationReceipt,
+  sendMembershipWelcome,
+  sendTicketConfirmation,
+} from "./email";
