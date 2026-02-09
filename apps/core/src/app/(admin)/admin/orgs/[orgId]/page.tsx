@@ -10,7 +10,7 @@ import {
   Button,
   Separator,
 } from "@sgscore/ui";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, LogIn } from "lucide-react";
 import { OrgActions } from "./org-actions";
 import type { OrgStatus } from "@sgscore/types";
 
@@ -49,6 +49,14 @@ export default async function OrgDetailPage({
         <Badge variant="secondary" className={statusColors[org.status]}>
           {org.status}
         </Badge>
+        {org.status === "active" && (
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/org/${org.slug}/tickets`}>
+              <LogIn className="mr-2 h-4 w-4" />
+              Enter Organization
+            </Link>
+          </Button>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-2">
@@ -128,7 +136,7 @@ export default async function OrgDetailPage({
           <CardTitle className="text-base">Actions</CardTitle>
         </CardHeader>
         <CardContent>
-          <OrgActions orgId={org.id} currentStatus={org.status} />
+          <OrgActions orgId={org.id} orgName={org.name} currentStatus={org.status} />
         </CardContent>
       </Card>
     </div>

@@ -9,7 +9,7 @@ export default function CreateOrgPage() {
           <CardTitle>Create Organization</CardTitle>
           <CardDescription>
             Register a new organization on the platform. The Supabase project
-            will need to be provisioned separately via the CLI.
+            will be provisioned automatically — this may take up to two minutes.
           </CardDescription>
         </CardHeader>
         <CardContent>

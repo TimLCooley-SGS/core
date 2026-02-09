@@ -1,6 +1,12 @@
 import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getOrgBySlug, resolveCapabilityKeys, getTenantClient } from "@sgscore/api";
+import {
+  getOrgBySlug,
+  getControlPlaneClient,
+  resolveCapabilityKeys,
+  getTenantClient,
+  getSgsStaffByIdentity,
+} from "@sgscore/api";
 import { OrgProvider } from "@/components/org-provider";
 
 export default async function OrgLayout({
@@ -23,7 +29,7 @@ export default async function OrgLayout({
   if (!org) redirect("/org-picker");
 
   // Resolve user's capabilities for this org
-  const cp = await import("@sgscore/api").then((m) => m.getControlPlaneClient());
+  const cp = getControlPlaneClient();
   const { data: link } = await cp
     .from("identity_org_links")
     .select("tenant_person_id")
@@ -32,13 +38,25 @@ export default async function OrgLayout({
     .eq("status", "active")
     .single();
 
-  if (!link) redirect("/org-picker");
+  let capabilities: string[];
 
-  const tenantClient = getTenantClient(org);
-  const capabilities = await resolveCapabilityKeys(
-    tenantClient,
-    link.tenant_person_id,
-  );
+  if (link) {
+    // Normal user — resolve capabilities from their role assignments
+    const tenantClient = getTenantClient(org);
+    capabilities = await resolveCapabilityKeys(tenantClient, link.tenant_person_id);
+  } else {
+    // No identity_org_link — check if platform staff
+    const staff = await getSgsStaffByIdentity(user.id);
+    if (!staff) redirect("/org-picker");
+
+    // Staff gets all capabilities
+    const tenantClient = getTenantClient(org);
+    const { data: allCaps } = await tenantClient
+      .from("capabilities")
+      .select("key");
+
+    capabilities = (allCaps ?? []).map((c) => c.key as string);
+  }
 
   return (
     <OrgProvider

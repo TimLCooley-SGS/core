@@ -7,16 +7,19 @@
     ".": "./src/index.ts",
     "./config": "./src/config.ts",
     "./permissions": "./src/permissions.ts",
-    "./email": "./src/email.ts"
+    "./email": "./src/email.ts",
+    "./provisioning": "./src/provisioning.ts"
   },
   "dependencies": {
     "@sgscore/types": "workspace:*",
     "@supabase/supabase-js": "^2.49.0",
     "dotenv": "^16.4.0",
     "@sendgrid/mail": "^8.1.0",
+    "pg": "^8.13.0",
     "zod": "^3.24.0"
   },
   "devDependencies": {
+    "@types/pg": "^8.11.0",
     "typescript": "^5.7.0"
   }
 }

@@ -161,10 +161,16 @@ importers:
       dotenv:
         specifier: ^16.4.0
         version: 16.6.1
+      pg:
+        specifier: ^8.13.0
+        version: 8.18.0
       zod:
         specifier: ^3.24.0
         version: 3.25.76
     devDependencies:
+      '@types/pg':
+        specifier: ^8.11.0
+        version: 8.16.0
       typescript:
         specifier: ^5.7.0
         version: 5.9.3

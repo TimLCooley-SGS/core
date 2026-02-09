@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Input, Badge, Card, CardContent } from "@sgscore/ui";
-import { Search } from "lucide-react";
+import { Input, Badge, Card, CardContent, Button } from "@sgscore/ui";
+import { Search, LogIn } from "lucide-react";
 import type { Organization, OrgStatus } from "@sgscore/types";
 
 const statusColors: Record<OrgStatus, string> = {
@@ -60,6 +60,23 @@ export function OrgSearchFilter({ orgs }: { orgs: Organization[] }) {
                     >
                       {org.status}
                     </Badge>
+                    {org.status === "active" && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                        asChild
+                        onClick={(e: React.MouseEvent) => e.stopPropagation()}
+                      >
+                        <Link
+                          href={`/org/${org.slug}/tickets`}
+                          onClick={(e) => e.stopPropagation()}
+                          title="Enter organization"
+                        >
+                          <LogIn className="h-4 w-4" />
+                        </Link>
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
