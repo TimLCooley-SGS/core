@@ -41,12 +41,11 @@ export function UserMenu({
             <Link href={settingsHref}>Settings</Link>
           </DropdownMenuItem>
         )}
-        <DropdownMenuItem asChild>
-          <form action={signOut}>
-            <button type="submit" className="w-full text-left">
-              Log out
-            </button>
-          </form>
+        <DropdownMenuItem
+          onSelect={() => signOut()}
+          className="cursor-pointer"
+        >
+          Log out
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
