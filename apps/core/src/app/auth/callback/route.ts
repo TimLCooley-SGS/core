@@ -32,7 +32,7 @@ export async function GET(request: Request) {
         if (orgLinks.length === 1) {
           // Single org — go straight to dashboard
           return NextResponse.redirect(
-            `${origin}/org/${orgLinks[0].organization.slug}/tickets`,
+            `${origin}/org/${orgLinks[0].organization.slug}`,
           );
         }
 

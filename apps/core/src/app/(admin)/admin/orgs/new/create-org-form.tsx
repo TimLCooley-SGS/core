@@ -25,25 +25,36 @@ export function CreateOrgForm() {
         />
       </div>
 
-      <div className="space-y-2">
-        <Label htmlFor="slug">Slug</Label>
-        <Input
-          id="slug"
-          name="slug"
-          placeholder="acme-theater"
-          pattern="^[a-z0-9][a-z0-9-]*[a-z0-9]$"
-          minLength={3}
-          maxLength={63}
-          required
-        />
-        <p className="text-xs text-muted-foreground">
-          Used in URLs. Lowercase letters, numbers, and hyphens only.
-        </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="firstName">First Name</Label>
+          <Input
+            id="firstName"
+            name="firstName"
+            placeholder="Tim"
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="lastName">Last Name</Label>
+          <Input
+            id="lastName"
+            name="lastName"
+            placeholder="Cooley"
+            required
+          />
+        </div>
       </div>
 
       <div className="space-y-2">
-        <Label htmlFor="plan_tier">Plan Tier</Label>
-        <Input id="plan_tier" name="plan_tier" placeholder="starter" />
+        <Label htmlFor="email">Email</Label>
+        <Input
+          id="email"
+          name="email"
+          type="email"
+          placeholder="tim@example.com"
+          required
+        />
       </div>
 
       <Button type="submit" className="w-full" disabled={isPending}>

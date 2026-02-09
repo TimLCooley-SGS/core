@@ -32,6 +32,10 @@ export default async function OrgDetailPage({
 
   const memberCount = await getOrgMemberCount(orgId);
 
+  const pendingAdmin = org.settings?.pending_admin as
+    | { global_identity_id: string; full_name: string; email: string }
+    | undefined;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-4">
@@ -67,6 +71,23 @@ export default async function OrgDetailPage({
             />
           </CardContent>
         </Card>
+
+        {pendingAdmin && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Primary Contact</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <DetailRow label="Name" value={pendingAdmin.full_name} />
+              <DetailRow label="Email" value={pendingAdmin.email} />
+              <DetailRow
+                label="Identity ID"
+                value={pendingAdmin.global_identity_id}
+                mono
+              />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
