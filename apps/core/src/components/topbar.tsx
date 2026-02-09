@@ -1,9 +1,9 @@
 "use client";
 
 import { useOrg } from "./org-provider";
-import { Avatar, AvatarFallback } from "@sgscore/ui";
+import { UserMenu } from "./user-menu";
 
-export function Topbar() {
+export function Topbar({ initials }: { initials: string }) {
   const { org } = useOrg();
 
   return (
@@ -11,13 +11,11 @@ export function Topbar() {
       <div>
         <h2 className="text-lg font-semibold">{org.name}</h2>
       </div>
-      <div className="flex items-center gap-4">
-        <Avatar>
-          <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-            U
-          </AvatarFallback>
-        </Avatar>
-      </div>
+      <UserMenu
+        initials={initials}
+        orgName={org.name}
+        settingsHref={`/org/${org.slug}/settings`}
+      />
     </header>
   );
 }

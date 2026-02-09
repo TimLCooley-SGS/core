@@ -1,5 +1,5 @@
-import Link from "next/link";
-import { Badge, Avatar, AvatarFallback } from "@sgscore/ui";
+import { Badge } from "@sgscore/ui";
+import { UserMenu } from "./user-menu";
 import type { SgsStaffRole } from "@sgscore/types";
 
 export function AdminTopbar({
@@ -17,19 +17,7 @@ export function AdminTopbar({
           {staffRole}
         </Badge>
       </div>
-      <div className="flex items-center gap-4">
-        <Link
-          href="/org-picker"
-          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-        >
-          Back to Orgs
-        </Link>
-        <Avatar>
-          <AvatarFallback className="bg-primary text-primary-foreground text-sm">
-            {initials}
-          </AvatarFallback>
-        </Avatar>
-      </div>
+      <UserMenu initials={initials} orgName="Platform Admin" />
     </header>
   );
 }
