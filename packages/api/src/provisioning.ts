@@ -657,16 +657,62 @@ WHERE r.name = 'Volunteer'
 // ---------------------------------------------------------------------------
 
 /**
+ * Fetch the connection pooler hostname for a Supabase project from the
+ * Management API. The pooler hostname varies by cluster and can't be
+ * predicted from the region alone.
+ */
+export async function getPoolerHost(
+  projectRef: string,
+): Promise<{ host: string; port: number }> {
+  const token = process.env.SUPABASE_ACCESS_TOKEN;
+  if (!token) {
+    throw new Error("SUPABASE_ACCESS_TOKEN is required for pooler lookup");
+  }
+
+  try {
+    const res = await fetch(
+      `${SUPABASE_MGMT_API}/projects/${projectRef}/config/database/pooler`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      },
+    );
+
+    if (res.ok) {
+      const data = await res.json();
+      // Response may be an array of pooler configs (transaction + session mode)
+      const configs = Array.isArray(data) ? data : [data];
+      // Prefer transaction mode (port 6543)
+      const txMode = configs.find(
+        (c: { db_port: number }) => c.db_port === 6543,
+      );
+      const config = txMode || configs[0];
+      if (config?.db_host) {
+        return { host: config.db_host, port: config.db_port ?? 6543 };
+      }
+    }
+  } catch (err) {
+    console.warn("Could not fetch pooler config from API:", err);
+  }
+
+  // Fallback: construct from region (best guess)
+  console.warn("Using fallback pooler hostname for project", projectRef);
+  return { host: `aws-0-us-east-1.pooler.supabase.com`, port: 6543 };
+}
+
+/**
  * Build a tenant database URL using the Supabase connection pooler.
  * Direct hostnames (db.{ref}.supabase.co) fail DNS on Vercel (IPv6).
- * Uses transaction mode (port 6543) which works for DDL in explicit transactions.
  */
 export function buildTenantDbUrl(
   projectRef: string,
   dbPassword: string,
+  poolerHost: string,
+  poolerPort: number = 6543,
 ): string {
-  // All tenant projects are created in us-east-1
-  return `postgresql://postgres.${projectRef}:${dbPassword}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`;
+  return `postgresql://postgres.${projectRef}:${dbPassword}@${poolerHost}:${poolerPort}/postgres`;
 }
 
 // ---------------------------------------------------------------------------
@@ -916,7 +962,8 @@ export async function provisionOrg(orgId: string): Promise<void> {
       const keys = await getApiKeys(projectRef);
       const supabaseUrl = `https://${projectRef}.supabase.co`;
 
-      const tenantDbUrl = buildTenantDbUrl(projectRef, dbPassword);
+      const pooler = await getPoolerHost(projectRef);
+      const tenantDbUrl = buildTenantDbUrl(projectRef, dbPassword, pooler.host, pooler.port);
       console.log("Running tenant migrations...");
       await runTenantMigrations(tenantDbUrl, { seed: true });
 

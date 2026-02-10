@@ -9,6 +9,7 @@ import {
   deleteSupabaseProject,
   runTenantMigrations,
   setupPendingAdminTenant,
+  getPoolerHost,
   buildTenantDbUrl,
   type PendingAdmin,
 } from "@sgscore/api/provisioning";
@@ -237,7 +238,8 @@ export async function createStep_ConfigureDb(
   try {
     const keys = await getApiKeys(org.supabase_project_id);
     const supabaseUrl = `https://${org.supabase_project_id}.supabase.co`;
-    const tenantDbUrl = buildTenantDbUrl(org.supabase_project_id, dbPassword);
+    const pooler = await getPoolerHost(org.supabase_project_id);
+    const tenantDbUrl = buildTenantDbUrl(org.supabase_project_id, dbPassword, pooler.host, pooler.port);
 
     await runTenantMigrations(tenantDbUrl, { seed: true });
 
@@ -281,7 +283,8 @@ export async function createStep_SetupAdmin(
   if (!admin) return { ok: false, error: "No pending admin found in org settings." };
 
   try {
-    const tenantDbUrl = buildTenantDbUrl(org.supabase_project_id, dbPassword);
+    const pooler = await getPoolerHost(org.supabase_project_id);
+    const tenantDbUrl = buildTenantDbUrl(org.supabase_project_id, dbPassword, pooler.host, pooler.port);
     const personId = await setupPendingAdminTenant(tenantDbUrl, admin);
 
     await cp.from("identity_org_links").insert({
