@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useActionState } from "react";
+import { useState, useEffect, useActionState, useTransition } from "react";
 import {
   Button,
   Input,
@@ -62,22 +62,43 @@ export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
   const [actionTarget, setActionTarget] = useState<StaffWithIdentity | null>(null);
 
   const [addState, addAction, addPending] = useActionState(addTeamMember, {});
-  const [removeState, removeAction, removePending] = useActionState(removeTeamMember, {});
-  const [deleteState, deleteAction, deletePending] = useActionState(deleteTeamMember, {});
   const [roleState, roleAction] = useActionState(updateTeamMemberRole, {});
 
-  // Close dialogs on success (useEffect only fires on value *change*, not stale true)
+  const [actionPending, startAction] = useTransition();
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Close add dialog on success
   useEffect(() => {
     if (addState.success) setAddDialogOpen(false);
   }, [addState.success]);
 
-  useEffect(() => {
-    if (removeState.success) setActionTarget(null);
-  }, [removeState.success]);
+  function handleDeactivate(staffId: string) {
+    setActionError(null);
+    startAction(async () => {
+      const fd = new FormData();
+      fd.set("staffId", staffId);
+      const result = await removeTeamMember({}, fd);
+      if (result.error) {
+        setActionError(result.error);
+      } else {
+        setActionTarget(null);
+      }
+    });
+  }
 
-  useEffect(() => {
-    if (deleteState.success) setActionTarget(null);
-  }, [deleteState.success]);
+  function handleDelete(staffId: string) {
+    setActionError(null);
+    startAction(async () => {
+      const fd = new FormData();
+      fd.set("staffId", staffId);
+      const result = await deleteTeamMember({}, fd);
+      if (result.error) {
+        setActionError(result.error);
+      } else {
+        setActionTarget(null);
+      }
+    });
+  }
 
   const filtered = members.filter((m) => m.status === statusFilter);
   const activeCount = members.filter((m) => m.status === "active").length;
@@ -244,7 +265,7 @@ export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
                       variant="ghost"
                       size="sm"
                       className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                      onClick={() => setActionTarget(member)}
+                      onClick={() => { setActionError(null); setActionTarget(member); }}
                     >
                       <Trash2 className="h-4 w-4" />
                     </Button>
@@ -272,36 +293,28 @@ export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
               ?
             </DialogDescription>
           </DialogHeader>
-          {(removeState.error || deleteState.error) && (
-            <p className="text-sm text-destructive">
-              {removeState.error || deleteState.error}
-            </p>
+          {actionError && (
+            <p className="text-sm text-destructive">{actionError}</p>
           )}
           <DialogFooter className="flex-col gap-2 sm:flex-col">
             {actionTarget?.status === "active" && (
-              <form action={removeAction} className="w-full">
-                <input type="hidden" name="staffId" value={actionTarget?.id ?? ""} />
-                <Button
-                  type="submit"
-                  variant="outline"
-                  className="w-full"
-                  disabled={removePending}
-                >
-                  {removePending ? "Deactivating..." : "Mark as Inactive"}
-                </Button>
-              </form>
-            )}
-            <form action={deleteAction} className="w-full">
-              <input type="hidden" name="staffId" value={actionTarget?.id ?? ""} />
               <Button
-                type="submit"
-                variant="destructive"
+                variant="outline"
                 className="w-full"
-                disabled={deletePending}
+                disabled={actionPending}
+                onClick={() => actionTarget && handleDeactivate(actionTarget.id)}
               >
-                {deletePending ? "Deleting..." : "Permanently Delete"}
+                {actionPending ? "Processing..." : "Mark as Inactive"}
               </Button>
-            </form>
+            )}
+            <Button
+              variant="destructive"
+              className="w-full"
+              disabled={actionPending}
+              onClick={() => actionTarget && handleDelete(actionTarget.id)}
+            >
+              {actionPending ? "Processing..." : "Permanently Delete"}
+            </Button>
             <Button
               variant="ghost"
               className="w-full"
