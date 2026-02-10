@@ -356,14 +356,18 @@ export async function createStep_SendWelcome(
   const admin = (org.settings as { pending_admin?: PendingAdmin })?.pending_admin;
   if (!admin) return { ok: true }; // No admin to email — not an error
 
+  const { data: linkData, error: linkError } = await cp.auth.admin.generateLink({
+    type: "magiclink",
+    email: admin.email,
+  });
+
+  if (linkError) {
+    return { ok: false, error: `Failed to generate login link: ${linkError.message}` };
+  }
+
+  const magicLink = linkData?.properties?.action_link;
+
   try {
-    const { data: linkData } = await cp.auth.admin.generateLink({
-      type: "magiclink",
-      email: admin.email,
-    });
-
-    const magicLink = linkData?.properties?.action_link;
-
     await sendEmail({
       to: admin.email,
       subject: `Welcome to ${org.name} on SGS Core`,
@@ -381,7 +385,7 @@ export async function createStep_SendWelcome(
           <h1 style="margin:0 0 8px;font-size:22px;color:#702B9E;">Welcome, ${admin.first_name}!</h1>
           <p style="margin:0 0 16px;color:#555;">Your organization <strong>${org.name}</strong> has been set up and is ready to go.</p>
           <p style="margin:0 0 24px;color:#555;">You've been assigned as the organization admin. Click the button below to sign in and get started.</p>
-          ${magicLink ? `<p style="text-align:center;margin:24px 0;"><a href="${magicLink}" style="display:inline-block;padding:12px 32px;background:#702B9E;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Sign In to SGS Core</a></p>` : `<p style="margin:0 0 16px;color:#555;">Visit <strong>app.sgscore.com</strong> and sign in with this email address to get started.</p>`}
+          ${magicLink ? `<p style="text-align:center;margin:24px 0;"><a href="${magicLink}" style="display:inline-block;padding:12px 32px;background:#702B9E;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Sign In to SGS Core</a></p>` : `<p style="margin:0 0 16px;color:#555;">Visit <strong>sgscore-core.vercel.app</strong> and sign in with this email address to get started.</p>`}
           <p style="margin:16px 0 0;font-size:13px;color:#999;">If you didn't expect this email, you can safely ignore it.</p>
         </td></tr>
         <tr><td style="padding:16px 32px;border-top:1px solid #e5e5e5;font-size:12px;color:#999;text-align:center;">
@@ -394,8 +398,10 @@ export async function createStep_SendWelcome(
 </html>`,
     });
   } catch (emailErr) {
-    // Don't fail the whole operation if the welcome email fails
-    console.error("Failed to send welcome email:", emailErr);
+    return {
+      ok: false,
+      error: `Failed to send email: ${emailErr instanceof Error ? emailErr.message : "Unknown error"}`,
+    };
   }
 
   return { ok: true };

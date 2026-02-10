@@ -150,26 +150,22 @@ export function CreateOrgForm() {
       }
       updateStep(2, { status: "done" });
 
-      // Steps 3-6: Configure DB, setup admin, activate, send email
-      const remainingSteps = [
+      // Steps 3-5: Configure DB, setup admin, activate
+      const criticalSteps = [
         () => createStep_ConfigureDb(orgId!),
         () => createStep_SetupAdmin(orgId!),
         () => createStep_Activate(orgId!),
-        () => createStep_SendWelcome(orgId!),
       ];
 
-      for (let i = 0; i < remainingSteps.length; i++) {
-        const stepIndex = i + 3; // steps 3-6 in the UI
+      for (let i = 0; i < criticalSteps.length; i++) {
+        const stepIndex = i + 3; // steps 3-5 in the UI
         updateStep(stepIndex, { status: "running" });
         try {
-          const result = await remainingSteps[i]();
+          const result = await criticalSteps[i]();
           if (!result.ok) {
             updateStep(stepIndex, { status: "error", error: result.error });
             setIsFailed(true);
-            // Clean up if before send-welcome (index 3 = step 6 = SendWelcome)
-            if (i < 3) {
-              try { await createStep_Cleanup(orgId!); } catch { /* best effort */ }
-            }
+            try { await createStep_Cleanup(orgId!); } catch { /* best effort */ }
             return;
           }
           updateStep(stepIndex, { status: "done" });
@@ -179,11 +175,22 @@ export function CreateOrgForm() {
             error: err instanceof Error ? err.message : "Unexpected error",
           });
           setIsFailed(true);
-          if (i < 3) {
-            try { await createStep_Cleanup(orgId!); } catch { /* best effort */ }
-          }
+          try { await createStep_Cleanup(orgId!); } catch { /* best effort */ }
           return;
         }
+      }
+
+      // Step 6: Send welcome email (non-fatal — org is already active)
+      updateStep(6, { status: "running" });
+      try {
+        const emailResult = await createStep_SendWelcome(orgId!);
+        if (!emailResult.ok) {
+          updateStep(6, { status: "error", error: emailResult.error });
+        } else {
+          updateStep(6, { status: "done" });
+        }
+      } catch {
+        updateStep(6, { status: "error", error: "Failed to send email" });
       }
 
       setIsComplete(true);
