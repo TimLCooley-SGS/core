@@ -17,7 +17,7 @@ import { CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
 import {
   createStep_Setup,
   createStep_CreateProject,
-  createStep_WaitForProject,
+  createStep_CheckProjectReady,
   createStep_ConfigureDb,
   createStep_SetupAdmin,
   createStep_Activate,
@@ -102,46 +102,85 @@ export function CreateOrgForm() {
         return;
       }
 
-      // Steps 1-6: Provisioning pipeline
-      const stepActions = [
-        () => createStep_CreateProject(orgId!),
-        () => createStep_WaitForProject(orgId!),
+      // Step 1: Create Supabase project
+      updateStep(1, { status: "running" });
+      try {
+        const r1 = await createStep_CreateProject(orgId!);
+        if (!r1.ok) {
+          updateStep(1, { status: "error", error: r1.error });
+          setIsFailed(true);
+          try { await createStep_Cleanup(orgId!); } catch { /* best effort */ }
+          return;
+        }
+        updateStep(1, { status: "done" });
+      } catch (err) {
+        updateStep(1, { status: "error", error: err instanceof Error ? err.message : "Unexpected error" });
+        setIsFailed(true);
+        try { await createStep_Cleanup(orgId!); } catch { /* best effort */ }
+        return;
+      }
+
+      // Step 2: Poll until project is ready (client-driven, avoids serverless timeouts)
+      updateStep(2, { status: "running" });
+      const maxAttempts = 60; // 60 * 5s = 5 minutes
+      let projectReady = false;
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        try {
+          const check = await createStep_CheckProjectReady(orgId!);
+          if (!check.ok) {
+            updateStep(2, { status: "error", error: check.error });
+            setIsFailed(true);
+            try { await createStep_Cleanup(orgId!); } catch { /* best effort */ }
+            return;
+          }
+          if (check.ready) {
+            projectReady = true;
+            break;
+          }
+        } catch {
+          // Transient error, keep polling
+        }
+        await new Promise((r) => setTimeout(r, 5000));
+      }
+      if (!projectReady) {
+        updateStep(2, { status: "error", error: "Project did not become ready within 5 minutes" });
+        setIsFailed(true);
+        try { await createStep_Cleanup(orgId!); } catch { /* best effort */ }
+        return;
+      }
+      updateStep(2, { status: "done" });
+
+      // Steps 3-6: Configure DB, setup admin, activate, send email
+      const remainingSteps = [
         () => createStep_ConfigureDb(orgId!),
         () => createStep_SetupAdmin(orgId!),
         () => createStep_Activate(orgId!),
         () => createStep_SendWelcome(orgId!),
       ];
 
-      for (let i = 0; i < stepActions.length; i++) {
-        updateStep(i + 1, { status: "running" });
+      for (let i = 0; i < remainingSteps.length; i++) {
+        const stepIndex = i + 3; // steps 3-6 in the UI
+        updateStep(stepIndex, { status: "running" });
         try {
-          const result = await stepActions[i]();
+          const result = await remainingSteps[i]();
           if (!result.ok) {
-            updateStep(i + 1, { status: "error", error: result.error });
+            updateStep(stepIndex, { status: "error", error: result.error });
             setIsFailed(true);
-            // Clean up if failure was before activation (step index 4)
-            if (i < 5) {
-              try {
-                await createStep_Cleanup(orgId!);
-              } catch {
-                /* best effort */
-              }
+            // Clean up if before send-welcome (index 3 = step 6 = SendWelcome)
+            if (i < 3) {
+              try { await createStep_Cleanup(orgId!); } catch { /* best effort */ }
             }
             return;
           }
-          updateStep(i + 1, { status: "done" });
+          updateStep(stepIndex, { status: "done" });
         } catch (err) {
-          updateStep(i + 1, {
+          updateStep(stepIndex, {
             status: "error",
             error: err instanceof Error ? err.message : "Unexpected error",
           });
           setIsFailed(true);
-          if (i < 5) {
-            try {
-              await createStep_Cleanup(orgId!);
-            } catch {
-              /* best effort */
-            }
+          if (i < 3) {
+            try { await createStep_Cleanup(orgId!); } catch { /* best effort */ }
           }
           return;
         }

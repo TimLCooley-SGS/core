@@ -4,7 +4,7 @@ import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getControlPlaneClient, getSgsStaffByIdentity, sendEmail } from "@sgscore/api";
 import {
   createSupabaseProject,
-  waitForProject,
+  supabaseMgmtFetch,
   getApiKeys,
   deleteSupabaseProject,
   runTenantMigrations,
@@ -189,12 +189,12 @@ export async function createStep_CreateProject(
 }
 
 // ---------------------------------------------------------------------------
-// Step 3: Wait for project to be ready
+// Step 3: Check if project is ready (client polls this repeatedly)
 // ---------------------------------------------------------------------------
 
-export async function createStep_WaitForProject(
+export async function createStep_CheckProjectReady(
   orgId: string,
-): Promise<CreateStepResult> {
+): Promise<CreateStepResult & { ready?: boolean }> {
   const auth = await requireStaff();
   if ("error" in auth) return { ok: false, error: auth.error };
 
@@ -207,10 +207,11 @@ export async function createStep_WaitForProject(
   if (!org?.supabase_project_id) return { ok: false, error: "No Supabase project found." };
 
   try {
-    await waitForProject(org.supabase_project_id);
-    return { ok: true };
+    const res = await supabaseMgmtFetch(`/projects/${org.supabase_project_id}`);
+    const project = (await res.json()) as { status: string };
+    return { ok: true, ready: project.status === "ACTIVE_HEALTHY" };
   } catch (err) {
-    return { ok: false, error: err instanceof Error ? err.message : "Project did not become ready" };
+    return { ok: false, error: err instanceof Error ? err.message : "Failed to check project status" };
   }
 }
 

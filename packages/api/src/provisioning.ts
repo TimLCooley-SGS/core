@@ -83,7 +83,7 @@ export async function createSupabaseProject(
 
 export async function waitForProject(
   projectRef: string,
-  maxWaitMs = 120_000,
+  maxWaitMs = 300_000,
 ): Promise<void> {
   const start = Date.now();
   while (Date.now() - start < maxWaitMs) {
