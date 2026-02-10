@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -10,8 +11,16 @@ import {
   BarChart3,
   Contact,
   Settings,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
-import { cn } from "@sgscore/ui";
+import {
+  cn,
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+  TooltipProvider,
+} from "@sgscore/ui";
 import { useOrg, useHasCapability } from "./org-provider";
 
 interface NavItem {
@@ -22,6 +31,7 @@ interface NavItem {
 }
 
 export function Sidebar() {
+  const [collapsed, setCollapsed] = useState(false);
   const pathname = usePathname();
   const { org } = useOrg();
 
@@ -36,27 +46,77 @@ export function Sidebar() {
   ];
 
   return (
-    <aside className="flex h-full w-64 flex-col bg-[#4E2C70] text-white">
-      <div className="flex h-16 items-center px-6">
-        <Link href="/org-picker" className="text-xl font-heading font-bold tracking-tight">
-          SGS Core
-        </Link>
-      </div>
+    <TooltipProvider delayDuration={0}>
+      <aside
+        className={cn(
+          "flex h-full flex-col bg-[#4E2C70] text-white transition-all duration-200",
+          collapsed ? "w-16" : "w-64",
+        )}
+      >
+        <div className="flex h-16 items-center justify-between px-3">
+          {!collapsed && (
+            <Link
+              href="/org-picker"
+              className="pl-3 text-xl font-heading font-bold tracking-tight"
+            >
+              SGS Core
+            </Link>
+          )}
+          <button
+            type="button"
+            onClick={() => setCollapsed(!collapsed)}
+            className={cn(
+              "flex h-8 w-8 items-center justify-center rounded-md text-white/70 hover:bg-white/10 hover:text-white transition-colors",
+              collapsed && "mx-auto",
+            )}
+          >
+            {collapsed ? (
+              <ChevronRight className="h-4 w-4" />
+            ) : (
+              <ChevronLeft className="h-4 w-4" />
+            )}
+          </button>
+        </div>
 
-      <nav className="flex-1 space-y-1 px-3 py-4">
-        {navItems.map((item) => (
-          <SidebarItem key={item.href} item={item} pathname={pathname} />
-        ))}
-      </nav>
+        <nav className="flex-1 space-y-1 px-3 py-4">
+          {navItems.map((item) => (
+            <SidebarItem
+              key={item.href}
+              item={item}
+              pathname={pathname}
+              collapsed={collapsed}
+            />
+          ))}
+        </nav>
 
-      <div className="border-t border-white/10 p-4">
-        <p className="truncate text-sm text-white/70">{org.name}</p>
-      </div>
-    </aside>
+        <div className="border-t border-white/10 p-4">
+          {collapsed ? (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <p className="truncate text-center text-xs text-white/70">
+                  {org.name.charAt(0)}
+                </p>
+              </TooltipTrigger>
+              <TooltipContent side="right">{org.name}</TooltipContent>
+            </Tooltip>
+          ) : (
+            <p className="truncate text-sm text-white/70">{org.name}</p>
+          )}
+        </div>
+      </aside>
+    </TooltipProvider>
   );
 }
 
-function SidebarItem({ item, pathname }: { item: NavItem; pathname: string }) {
+function SidebarItem({
+  item,
+  pathname,
+  collapsed,
+}: {
+  item: NavItem;
+  pathname: string;
+  collapsed: boolean;
+}) {
   const hasAccess = item.capability
     ? useHasCapability(item.capability)
     : true;
@@ -65,18 +125,30 @@ function SidebarItem({ item, pathname }: { item: NavItem; pathname: string }) {
 
   const isActive = pathname.startsWith(item.href);
 
-  return (
+  const link = (
     <Link
       href={item.href}
       className={cn(
-        "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        "flex items-center rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+        collapsed ? "justify-center" : "gap-3",
         isActive
           ? "bg-white/15 text-white"
           : "text-white/70 hover:bg-white/10 hover:text-white",
       )}
     >
-      <item.icon className="h-5 w-5" />
-      {item.label}
+      <item.icon className="h-5 w-5 shrink-0" />
+      {!collapsed && item.label}
     </Link>
   );
+
+  if (collapsed) {
+    return (
+      <Tooltip>
+        <TooltipTrigger asChild>{link}</TooltipTrigger>
+        <TooltipContent side="right">{item.label}</TooltipContent>
+      </Tooltip>
+    );
+  }
+
+  return link;
 }
