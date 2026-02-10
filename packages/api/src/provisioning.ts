@@ -4,10 +4,11 @@
  * Used by:
  * - The web UI create-org flow (inline provisioning)
  * - The CLI `provision-org.ts` script
+ *
+ * Migration SQL is bundled as strings so this works in serverless
+ * environments (Vercel) where the filesystem isn't available.
  */
 import pg from "pg";
-import fs from "node:fs";
-import path from "node:path";
 
 const SUPABASE_MGMT_API = "https://api.supabase.com/v1";
 
@@ -135,32 +136,530 @@ export async function deleteSupabaseProject(
 }
 
 // ---------------------------------------------------------------------------
+// Bundled tenant migrations & seeds
+// ---------------------------------------------------------------------------
+// SQL is embedded as strings so this module works in serverless environments
+// (e.g. Vercel) where the infrastructure/ directory isn't on the filesystem.
+// When adding a new migration file, add a corresponding entry here.
+
+const MIGRATIONS: { name: string; sql: string }[] = [
+  {
+    name: "001_create_enums.sql",
+    sql: `
+CREATE TYPE person_status AS ENUM ('active', 'inactive', 'merged');
+CREATE TYPE household_role AS ENUM ('primary', 'co_primary', 'dependent', 'other');
+CREATE TYPE membership_status AS ENUM ('active', 'expired', 'cancelled', 'pending_payment');
+CREATE TYPE membership_plan_status AS ENUM ('active', 'archived');
+CREATE TYPE seat_action AS ENUM ('assigned', 'unassigned', 'transferred');
+CREATE TYPE staff_assignment_status AS ENUM ('active', 'inactive');
+CREATE TYPE override_type AS ENUM ('grant', 'revoke');
+CREATE TYPE merge_request_status AS ENUM ('pending', 'approved', 'completed', 'rejected');
+CREATE TYPE merge_log_action AS ENUM ('fk_repointed', 'field_updated', 'archived');
+CREATE TYPE visit_type AS ENUM ('day_pass', 'member_visit', 'event', 'program', 'other');
+CREATE TYPE audit_actor_type AS ENUM ('staff', 'patron', 'system', 'sgs_support');
+CREATE TYPE audit_action AS ENUM ('create', 'update', 'delete', 'merge', 'login', 'logout', 'assign', 'unassign', 'transfer');
+`,
+  },
+  {
+    name: "002_create_persons.sql",
+    sql: `
+CREATE OR REPLACE FUNCTION update_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TABLE persons (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  first_name text NOT NULL,
+  last_name text NOT NULL,
+  display_name text,
+  email text,
+  phone text,
+  date_of_birth date,
+  address_line1 text,
+  address_line2 text,
+  city text,
+  state text,
+  postal_code text,
+  country text NOT NULL DEFAULT 'US',
+  global_identity_id uuid,
+  login_enabled boolean NOT NULL DEFAULT false,
+  status person_status NOT NULL DEFAULT 'active',
+  merged_into_id uuid REFERENCES persons(id),
+  metadata jsonb NOT NULL DEFAULT '{}',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  created_by uuid REFERENCES persons(id),
+  updated_by uuid REFERENCES persons(id),
+  CONSTRAINT chk_merged_has_target CHECK (
+    (status = 'merged' AND merged_into_id IS NOT NULL) OR
+    (status != 'merged' AND merged_into_id IS NULL)
+  )
+);
+
+CREATE INDEX idx_persons_email ON persons (email) WHERE email IS NOT NULL;
+CREATE INDEX idx_persons_global_identity ON persons (global_identity_id) WHERE global_identity_id IS NOT NULL;
+CREATE INDEX idx_persons_status ON persons (status);
+CREATE INDEX idx_persons_name ON persons (last_name, first_name);
+CREATE INDEX idx_persons_merged_into ON persons (merged_into_id) WHERE merged_into_id IS NOT NULL;
+
+CREATE TRIGGER trg_persons_updated_at
+  BEFORE UPDATE ON persons
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+`,
+  },
+  {
+    name: "003_create_staff_permissions.sql",
+    sql: `
+CREATE TABLE roles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text,
+  is_system boolean NOT NULL DEFAULT false,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TRIGGER trg_roles_updated_at
+  BEFORE UPDATE ON roles
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TABLE capabilities (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  resource text NOT NULL,
+  action text NOT NULL,
+  key text NOT NULL UNIQUE,
+  description text,
+  category text,
+  sort_order integer NOT NULL DEFAULT 0,
+  CONSTRAINT uq_capabilities_resource_action UNIQUE (resource, action)
+);
+
+CREATE INDEX idx_capabilities_category ON capabilities (category, sort_order);
+
+CREATE TABLE role_capabilities (
+  role_id uuid NOT NULL REFERENCES roles(id) ON DELETE CASCADE,
+  capability_id uuid NOT NULL REFERENCES capabilities(id) ON DELETE CASCADE,
+  PRIMARY KEY (role_id, capability_id)
+);
+
+CREATE TABLE staff_assignments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  person_id uuid NOT NULL REFERENCES persons(id),
+  role_id uuid NOT NULL REFERENCES roles(id),
+  status staff_assignment_status NOT NULL DEFAULT 'active',
+  started_at timestamptz NOT NULL DEFAULT now(),
+  ended_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_staff_assignments_person ON staff_assignments (person_id);
+CREATE INDEX idx_staff_assignments_role ON staff_assignments (role_id);
+CREATE INDEX idx_staff_assignments_active ON staff_assignments (person_id, status) WHERE status = 'active';
+
+CREATE TRIGGER trg_staff_assignments_updated_at
+  BEFORE UPDATE ON staff_assignments
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TABLE staff_capability_overrides (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_assignment_id uuid NOT NULL REFERENCES staff_assignments(id) ON DELETE CASCADE,
+  capability_id uuid NOT NULL REFERENCES capabilities(id),
+  override_type override_type NOT NULL,
+  granted_by uuid REFERENCES persons(id),
+  reason text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT uq_override_per_capability UNIQUE (staff_assignment_id, capability_id)
+);
+
+CREATE INDEX idx_staff_overrides_assignment ON staff_capability_overrides (staff_assignment_id);
+`,
+  },
+  {
+    name: "004_create_households.sql",
+    sql: `
+CREATE TABLE households (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TRIGGER trg_households_updated_at
+  BEFORE UPDATE ON households
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TABLE household_members (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  household_id uuid NOT NULL REFERENCES households(id) ON DELETE CASCADE,
+  person_id uuid NOT NULL REFERENCES persons(id),
+  role household_role NOT NULL DEFAULT 'other',
+  can_manage_logins boolean NOT NULL DEFAULT false,
+  joined_at timestamptz NOT NULL DEFAULT now(),
+  removed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_household_members_household ON household_members (household_id);
+CREATE INDEX idx_household_members_person ON household_members (person_id);
+CREATE INDEX idx_household_members_active ON household_members (household_id) WHERE removed_at IS NULL;
+`,
+  },
+  {
+    name: "005_create_memberships.sql",
+    sql: `
+CREATE TABLE membership_plans (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text,
+  seat_count integer NOT NULL CHECK (seat_count > 0),
+  price_cents integer NOT NULL CHECK (price_cents >= 0),
+  currency text NOT NULL DEFAULT 'usd',
+  duration_days integer NOT NULL CHECK (duration_days > 0),
+  is_recurring boolean NOT NULL DEFAULT false,
+  stripe_price_id text,
+  status membership_plan_status NOT NULL DEFAULT 'active',
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_membership_plans_status ON membership_plans (status);
+
+CREATE TRIGGER trg_membership_plans_updated_at
+  BEFORE UPDATE ON membership_plans
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TABLE memberships (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  membership_plan_id uuid NOT NULL REFERENCES membership_plans(id),
+  purchased_by_person_id uuid NOT NULL REFERENCES persons(id),
+  household_id uuid REFERENCES households(id),
+  status membership_status NOT NULL DEFAULT 'pending_payment',
+  starts_at timestamptz NOT NULL,
+  ends_at timestamptz NOT NULL,
+  stripe_subscription_id text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_membership_dates CHECK (ends_at > starts_at)
+);
+
+CREATE INDEX idx_memberships_plan ON memberships (membership_plan_id);
+CREATE INDEX idx_memberships_purchaser ON memberships (purchased_by_person_id);
+CREATE INDEX idx_memberships_household ON memberships (household_id) WHERE household_id IS NOT NULL;
+CREATE INDEX idx_memberships_status ON memberships (status);
+CREATE INDEX idx_memberships_active ON memberships (status, starts_at, ends_at) WHERE status = 'active';
+
+CREATE TRIGGER trg_memberships_updated_at
+  BEFORE UPDATE ON memberships
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TABLE membership_seats (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  membership_id uuid NOT NULL REFERENCES memberships(id) ON DELETE CASCADE,
+  seat_number integer NOT NULL CHECK (seat_number > 0),
+  person_id uuid REFERENCES persons(id),
+  assigned_at timestamptz,
+  assigned_by_person_id uuid REFERENCES persons(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT uq_membership_seat_number UNIQUE (membership_id, seat_number)
+);
+
+CREATE INDEX idx_membership_seats_membership ON membership_seats (membership_id);
+CREATE INDEX idx_membership_seats_person ON membership_seats (person_id) WHERE person_id IS NOT NULL;
+
+CREATE TRIGGER trg_membership_seats_updated_at
+  BEFORE UPDATE ON membership_seats
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TABLE membership_seat_history (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  membership_seat_id uuid NOT NULL REFERENCES membership_seats(id) ON DELETE CASCADE,
+  person_id uuid REFERENCES persons(id),
+  action seat_action NOT NULL,
+  performed_by_person_id uuid REFERENCES persons(id),
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_seat_history_seat ON membership_seat_history (membership_seat_id);
+CREATE INDEX idx_seat_history_person ON membership_seat_history (person_id) WHERE person_id IS NOT NULL;
+`,
+  },
+  {
+    name: "006_create_donations_visits.sql",
+    sql: `
+CREATE TABLE donations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  person_id uuid NOT NULL REFERENCES persons(id),
+  amount_cents integer NOT NULL CHECK (amount_cents > 0),
+  currency text NOT NULL DEFAULT 'usd',
+  campaign text,
+  donation_date timestamptz NOT NULL DEFAULT now(),
+  stripe_payment_intent_id text,
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_donations_person ON donations (person_id);
+CREATE INDEX idx_donations_date ON donations (donation_date);
+CREATE INDEX idx_donations_campaign ON donations (campaign) WHERE campaign IS NOT NULL;
+
+CREATE TABLE visits (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  person_id uuid NOT NULL REFERENCES persons(id),
+  visit_type visit_type NOT NULL,
+  visited_at timestamptz NOT NULL DEFAULT now(),
+  notes text,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_visits_person ON visits (person_id);
+CREATE INDEX idx_visits_date ON visits (visited_at);
+CREATE INDEX idx_visits_type ON visits (visit_type);
+`,
+  },
+  {
+    name: "007_create_dedup.sql",
+    sql: `
+CREATE TABLE person_merge_requests (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  source_person_id uuid NOT NULL REFERENCES persons(id),
+  target_person_id uuid NOT NULL REFERENCES persons(id),
+  status merge_request_status NOT NULL DEFAULT 'pending',
+  requested_by uuid NOT NULL REFERENCES persons(id),
+  reviewed_by uuid REFERENCES persons(id),
+  merge_strategy jsonb NOT NULL DEFAULT '{}',
+  completed_at timestamptz,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CONSTRAINT chk_merge_not_self CHECK (source_person_id != target_person_id)
+);
+
+CREATE INDEX idx_merge_requests_source ON person_merge_requests (source_person_id);
+CREATE INDEX idx_merge_requests_target ON person_merge_requests (target_person_id);
+CREATE INDEX idx_merge_requests_status ON person_merge_requests (status) WHERE status IN ('pending', 'approved');
+
+CREATE TRIGGER trg_merge_requests_updated_at
+  BEFORE UPDATE ON person_merge_requests
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TABLE person_merge_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  merge_request_id uuid NOT NULL REFERENCES person_merge_requests(id),
+  table_name text NOT NULL,
+  record_id uuid NOT NULL,
+  action merge_log_action NOT NULL,
+  old_value jsonb,
+  new_value jsonb,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_merge_log_request ON person_merge_log (merge_request_id);
+`,
+  },
+  {
+    name: "008_create_audit_log.sql",
+    sql: `
+CREATE TABLE audit_log (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  actor_person_id uuid REFERENCES persons(id),
+  actor_type audit_actor_type NOT NULL,
+  impersonation_session_id uuid,
+  impersonated_by_email text,
+  action audit_action NOT NULL,
+  table_name text NOT NULL,
+  record_id uuid,
+  old_values jsonb,
+  new_values jsonb,
+  ip_address inet,
+  created_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE OR REPLACE FUNCTION prevent_tenant_audit_log_modification()
+RETURNS TRIGGER AS $$
+BEGIN
+  RAISE EXCEPTION 'audit_log is append-only: % operations are not allowed', TG_OP;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_audit_log_immutable
+  BEFORE UPDATE OR DELETE ON audit_log
+  FOR EACH ROW EXECUTE FUNCTION prevent_tenant_audit_log_modification();
+
+CREATE INDEX idx_audit_log_actor ON audit_log (actor_person_id);
+CREATE INDEX idx_audit_log_action ON audit_log (action);
+CREATE INDEX idx_audit_log_table ON audit_log (table_name, record_id);
+CREATE INDEX idx_audit_log_created ON audit_log (created_at);
+CREATE INDEX idx_audit_log_impersonation ON audit_log (impersonation_session_id) WHERE impersonation_session_id IS NOT NULL;
+`,
+  },
+  {
+    name: "009_create_views.sql",
+    sql: `
+CREATE VIEW active_members AS
+SELECT DISTINCT p.*
+FROM persons p
+JOIN membership_seats ms ON ms.person_id = p.id
+JOIN memberships m ON m.id = ms.membership_id
+WHERE m.status = 'active'
+  AND now() BETWEEN m.starts_at AND m.ends_at;
+
+CREATE VIEW donors AS
+SELECT DISTINCT p.*
+FROM persons p
+JOIN donations d ON d.person_id = p.id;
+
+CREATE VIEW recent_visitors AS
+SELECT DISTINCT p.*
+FROM persons p
+JOIN visits v ON v.person_id = p.id;
+`,
+  },
+];
+
+const SEEDS: { name: string; sql: string }[] = [
+  {
+    name: "capabilities.sql",
+    sql: `
+INSERT INTO capabilities (resource, action, key, description, category, sort_order) VALUES
+  ('tickets', 'create', 'tickets.create', 'Create tickets', 'Tickets', 10),
+  ('tickets', 'read',   'tickets.read',   'View tickets', 'Tickets', 20),
+  ('tickets', 'update', 'tickets.update', 'Edit tickets', 'Tickets', 30),
+  ('tickets', 'delete', 'tickets.delete', 'Delete tickets', 'Tickets', 40),
+  ('tickets', 'manage', 'tickets.manage', 'Full ticket management', 'Tickets', 50),
+  ('members', 'create', 'members.create', 'Create member records', 'Members', 10),
+  ('members', 'read',   'members.read',   'View member records', 'Members', 20),
+  ('members', 'update', 'members.update', 'Edit member records', 'Members', 30),
+  ('members', 'delete', 'members.delete', 'Delete member records', 'Members', 40),
+  ('members', 'manage', 'members.manage', 'Full member management', 'Members', 50),
+  ('donations', 'create', 'donations.create', 'Record donations', 'Donations', 10),
+  ('donations', 'read',   'donations.read',   'View donations', 'Donations', 20),
+  ('donations', 'update', 'donations.update', 'Edit donations', 'Donations', 30),
+  ('donations', 'delete', 'donations.delete', 'Delete donations', 'Donations', 40),
+  ('donations', 'manage', 'donations.manage', 'Full donation management', 'Donations', 50),
+  ('reports', 'read',   'reports.read',   'View reports', 'Reports', 10),
+  ('reports', 'create', 'reports.create', 'Create custom reports', 'Reports', 20),
+  ('reports', 'manage', 'reports.manage', 'Full report management', 'Reports', 30),
+  ('people', 'create', 'people.create', 'Create person records', 'People', 10),
+  ('people', 'read',   'people.read',   'View person records', 'People', 20),
+  ('people', 'update', 'people.update', 'Edit person records', 'People', 30),
+  ('people', 'delete', 'people.delete', 'Delete person records', 'People', 40),
+  ('people', 'merge',  'people.merge',  'Merge duplicate persons', 'People', 50),
+  ('people', 'manage', 'people.manage', 'Full people management', 'People', 60),
+  ('households', 'create', 'households.create', 'Create households', 'Households', 10),
+  ('households', 'read',   'households.read',   'View households', 'Households', 20),
+  ('households', 'update', 'households.update', 'Edit households', 'Households', 30),
+  ('households', 'delete', 'households.delete', 'Delete households', 'Households', 40),
+  ('households', 'manage', 'households.manage', 'Full household management', 'Households', 50),
+  ('visits', 'create', 'visits.create', 'Record visits', 'Visits', 10),
+  ('visits', 'read',   'visits.read',   'View visits', 'Visits', 20),
+  ('visits', 'update', 'visits.update', 'Edit visits', 'Visits', 30),
+  ('visits', 'delete', 'visits.delete', 'Delete visits', 'Visits', 40),
+  ('visits', 'manage', 'visits.manage', 'Full visit management', 'Visits', 50),
+  ('staff', 'create', 'staff.create', 'Add staff members', 'Staff', 10),
+  ('staff', 'read',   'staff.read',   'View staff', 'Staff', 20),
+  ('staff', 'update', 'staff.update', 'Edit staff assignments', 'Staff', 30),
+  ('staff', 'delete', 'staff.delete', 'Remove staff', 'Staff', 40),
+  ('staff', 'manage', 'staff.manage', 'Full staff management', 'Staff', 50),
+  ('roles', 'create', 'roles.create', 'Create roles', 'Roles', 10),
+  ('roles', 'read',   'roles.read',   'View roles', 'Roles', 20),
+  ('roles', 'update', 'roles.update', 'Edit roles & capabilities', 'Roles', 30),
+  ('roles', 'delete', 'roles.delete', 'Delete roles', 'Roles', 40),
+  ('roles', 'manage', 'roles.manage', 'Full role management', 'Roles', 50),
+  ('settings', 'read',   'settings.read',   'View org settings', 'Settings', 10),
+  ('settings', 'update', 'settings.update', 'Edit org settings', 'Settings', 20),
+  ('settings', 'manage', 'settings.manage', 'Full settings management', 'Settings', 30),
+  ('billing', 'read',   'billing.read',   'View billing information', 'Billing', 10),
+  ('billing', 'manage', 'billing.manage', 'Manage billing & payments', 'Billing', 20),
+  ('memberships', 'create', 'memberships.create', 'Create memberships', 'Memberships', 10),
+  ('memberships', 'read',   'memberships.read',   'View memberships', 'Memberships', 20),
+  ('memberships', 'update', 'memberships.update', 'Edit memberships', 'Memberships', 30),
+  ('memberships', 'delete', 'memberships.delete', 'Delete memberships', 'Memberships', 40),
+  ('memberships', 'manage', 'memberships.manage', 'Full membership management', 'Memberships', 50),
+  ('events', 'create', 'events.create', 'Create events', 'Events', 10),
+  ('events', 'read',   'events.read',   'View events', 'Events', 20),
+  ('events', 'update', 'events.update', 'Edit events', 'Events', 30),
+  ('events', 'delete', 'events.delete', 'Delete events', 'Events', 40),
+  ('events', 'manage', 'events.manage', 'Full event management', 'Events', 50),
+  ('analytics', 'read',   'analytics.read',   'View analytics', 'Analytics', 10),
+  ('analytics', 'manage', 'analytics.manage', 'Full analytics management', 'Analytics', 20),
+  ('persons', 'read', 'persons.read', 'View persons', 'Persons', 10),
+  ('persons', 'manage', 'persons.manage', 'Full persons management', 'Persons', 20)
+ON CONFLICT (key) DO NOTHING;
+`,
+  },
+  {
+    name: "default-roles.sql",
+    sql: `
+INSERT INTO roles (name, description, is_system) VALUES
+  ('Org Admin', 'Full access to all org features and settings. Cannot be deleted.', true),
+  ('Manager', 'Access to most features. Cannot manage billing or org settings.', false),
+  ('Front Desk', 'Day-to-day operations: check-ins, memberships, basic people management.', false),
+  ('Volunteer', 'Limited read access for volunteer-level tasks.', false);
+
+INSERT INTO role_capabilities (role_id, capability_id)
+SELECT r.id, c.id
+FROM roles r
+CROSS JOIN capabilities c
+WHERE r.name = 'Org Admin';
+
+INSERT INTO role_capabilities (role_id, capability_id)
+SELECT r.id, c.id
+FROM roles r
+CROSS JOIN capabilities c
+WHERE r.name = 'Manager'
+  AND c.key NOT IN (
+    'settings.manage',
+    'billing.manage',
+    'billing.read',
+    'roles.manage',
+    'roles.create',
+    'roles.delete',
+    'staff.manage',
+    'staff.delete'
+  );
+
+INSERT INTO role_capabilities (role_id, capability_id)
+SELECT r.id, c.id
+FROM roles r
+CROSS JOIN capabilities c
+WHERE r.name = 'Front Desk'
+  AND c.key IN (
+    'tickets.create', 'tickets.read', 'tickets.update',
+    'members.read', 'members.update',
+    'people.read', 'people.update',
+    'households.read',
+    'visits.create', 'visits.read',
+    'donations.read'
+  );
+
+INSERT INTO role_capabilities (role_id, capability_id)
+SELECT r.id, c.id
+FROM roles r
+CROSS JOIN capabilities c
+WHERE r.name = 'Volunteer'
+  AND c.key IN (
+    'tickets.read',
+    'members.read',
+    'people.read',
+    'visits.read'
+  );
+`,
+  },
+];
+
+// ---------------------------------------------------------------------------
 // Tenant migration runner
 // ---------------------------------------------------------------------------
-
-/**
- * Finds the infrastructure/db/tenant directory by searching up from cwd
- * for the pnpm-workspace.yaml marker.
- */
-function findMonorepoRoot(): string {
-  let dir = process.cwd();
-  while (dir !== path.dirname(dir)) {
-    if (fs.existsSync(path.join(dir, "pnpm-workspace.yaml"))) return dir;
-    dir = path.dirname(dir);
-  }
-  throw new Error(
-    "Could not find monorepo root (no pnpm-workspace.yaml found)",
-  );
-}
 
 export async function runTenantMigrations(
   databaseUrl: string,
   options?: { seed?: boolean },
 ): Promise<void> {
-  const root = findMonorepoRoot();
-  const migrationsDir = path.join(root, "infrastructure/db/tenant/migrations");
-  const seedsDir = path.join(root, "infrastructure/db/tenant/seeds");
-
   const client = new pg.Client({ connectionString: databaseUrl });
   await client.connect();
 
@@ -178,32 +677,26 @@ export async function runTenantMigrations(
     );
     const appliedSet = new Set(applied.map((r) => r.name));
 
-    const files = fs
-      .readdirSync(migrationsDir)
-      .filter((f) => f.endsWith(".sql"))
-      .sort();
-
     let count = 0;
-    for (const file of files) {
-      if (appliedSet.has(file)) {
-        console.log(`  skip: ${file} (already applied)`);
+    for (const migration of MIGRATIONS) {
+      if (appliedSet.has(migration.name)) {
+        console.log(`  skip: ${migration.name} (already applied)`);
         continue;
       }
 
-      const sql = fs.readFileSync(path.join(migrationsDir, file), "utf-8");
-      console.log(`  apply: ${file}`);
+      console.log(`  apply: ${migration.name}`);
 
       await client.query("BEGIN");
       try {
-        await client.query(sql);
+        await client.query(migration.sql);
         await client.query("INSERT INTO _migrations (name) VALUES ($1)", [
-          file,
+          migration.name,
         ]);
         await client.query("COMMIT");
         count++;
       } catch (err) {
         await client.query("ROLLBACK");
-        console.error(`  FAILED: ${file}`);
+        console.error(`  FAILED: ${migration.name}`);
         throw err;
       }
     }
@@ -212,30 +705,24 @@ export async function runTenantMigrations(
 
     if (options?.seed) {
       console.log("\nRunning seeds...");
-      const seedFiles = fs
-        .readdirSync(seedsDir)
-        .filter((f) => f.endsWith(".sql"))
-        .sort();
-
-      for (const file of seedFiles) {
-        if (appliedSet.has(`seed:${file}`)) {
-          console.log(`  skip seed: ${file} (already applied)`);
+      for (const seed of SEEDS) {
+        if (appliedSet.has(`seed:${seed.name}`)) {
+          console.log(`  skip seed: ${seed.name} (already applied)`);
           continue;
         }
 
-        const sql = fs.readFileSync(path.join(seedsDir, file), "utf-8");
-        console.log(`  seed: ${file}`);
+        console.log(`  seed: ${seed.name}`);
 
         await client.query("BEGIN");
         try {
-          await client.query(sql);
+          await client.query(seed.sql);
           await client.query("INSERT INTO _migrations (name) VALUES ($1)", [
-            `seed:${file}`,
+            `seed:${seed.name}`,
           ]);
           await client.query("COMMIT");
         } catch (err) {
           await client.query("ROLLBACK");
-          console.error(`  SEED FAILED: ${file}`);
+          console.error(`  SEED FAILED: ${seed.name}`);
           throw err;
         }
       }
