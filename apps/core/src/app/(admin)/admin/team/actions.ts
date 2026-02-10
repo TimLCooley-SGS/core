@@ -41,38 +41,48 @@ export async function addTeamMember(
 
   const cp = getControlPlaneClient();
 
-  // Find or create the global identity
-  const { data: existing } = await cp
-    .from("global_identities")
-    .select("id")
-    .eq("primary_email", email)
-    .single();
+  // Create auth user (or find existing) — global_identities.id must match auth.users.id
+  let authUserId: string;
 
-  let globalIdentityId: string;
+  const { data: createData, error: createError } =
+    await cp.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      user_metadata: displayName ? { display_name: displayName } : undefined,
+    });
 
-  if (existing) {
-    globalIdentityId = existing.id;
-
-    // Update display name if provided
-    if (displayName) {
-      await cp
-        .from("global_identities")
-        .update({ display_name: displayName })
-        .eq("id", globalIdentityId);
+  if (createError) {
+    if (createError.message?.includes("already been registered")) {
+      const { data: listData, error: listError } =
+        await cp.auth.admin.listUsers();
+      if (listError) {
+        return { error: `Failed to look up existing user: ${listError.message}` };
+      }
+      const existingUser = listData.users.find(
+        (u) => u.email?.toLowerCase() === email,
+      );
+      if (!existingUser) {
+        return { error: "User appears to exist but could not be found." };
+      }
+      authUserId = existingUser.id;
+    } else {
+      return { error: `Failed to create user: ${createError.message}` };
     }
   } else {
-    // Create a new global identity
-    const { data: newIdentity, error: identityError } = await cp
-      .from("global_identities")
-      .insert({ primary_email: email, display_name: displayName })
-      .select("id")
-      .single();
-
-    if (identityError || !newIdentity) {
-      return { error: `Failed to create identity: ${identityError?.message ?? "Unknown error"}` };
-    }
-    globalIdentityId = newIdentity.id;
+    authUserId = createData.user.id;
   }
+
+  // Upsert global identity (id must match auth.users.id)
+  const { error: identityError } = await cp.from("global_identities").upsert(
+    { id: authUserId, primary_email: email, display_name: displayName },
+    { onConflict: "id" },
+  );
+
+  if (identityError) {
+    return { error: `Failed to create identity: ${identityError.message}` };
+  }
+
+  const globalIdentityId = authUserId;
 
   // Check if already staff
   const { data: existingStaff } = await cp
