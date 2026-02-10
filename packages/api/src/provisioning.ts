@@ -841,11 +841,12 @@ export async function provisionOrg(orgId: string): Promise<void> {
 
     console.log(`Provisioning org: ${org.name} (${org.slug})`);
 
+    let projectRef: string | null = null;
     try {
       console.log("Creating Supabase project...");
       const projectName = `sgscore-${org.slug}`;
       const project = await createSupabaseProject(projectName, dbPassword);
-      const projectRef = project.id;
+      projectRef = project.id;
       console.log(`Created project: ${projectRef}`);
 
       await waitForProject(projectRef);
@@ -894,6 +895,14 @@ export async function provisionOrg(orgId: string): Promise<void> {
       console.log(`  Slug: ${org.slug}`);
       console.log(`  URL: ${supabaseUrl}`);
     } catch (err) {
+      // Clean up: delete the Supabase project if it was created
+      if (projectRef) {
+        try {
+          await deleteSupabaseProject(projectRef);
+        } catch (cleanupErr) {
+          console.warn("Failed to clean up Supabase project:", cleanupErr);
+        }
+      }
       await cpClient.query(
         "UPDATE organizations SET status = 'archived' WHERE id = $1",
         [orgId],
