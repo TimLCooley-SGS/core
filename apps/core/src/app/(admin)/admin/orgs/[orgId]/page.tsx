@@ -136,7 +136,7 @@ export default async function OrgDetailPage({
           <CardTitle className="text-base">Actions</CardTitle>
         </CardHeader>
         <CardContent>
-          <OrgActions orgId={org.id} orgName={org.name} currentStatus={org.status} />
+          <OrgActions orgId={org.id} orgName={org.name} orgSlug={org.slug} currentStatus={org.status} />
         </CardContent>
       </Card>
     </div>

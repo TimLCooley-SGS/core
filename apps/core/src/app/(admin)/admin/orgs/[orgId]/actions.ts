@@ -61,77 +61,109 @@ export async function updateOrgStatus(
   return { success: true };
 }
 
-interface DeleteOrgState {
+export interface DeleteStepResult {
+  ok: boolean;
   error?: string;
 }
 
-export async function deleteOrganization(
-  _prev: DeleteOrgState,
-  formData: FormData,
-): Promise<DeleteOrgState> {
+async function requireStaff(): Promise<{ userId: string } | { error: string }> {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   if (!user) return { error: "Not authenticated." };
-
   const staff = await getSgsStaffByIdentity(user.id);
   if (!staff) return { error: "Not authorized." };
+  return { userId: user.id };
+}
 
-  const orgId = formData.get("orgId") as string;
-  if (!orgId) return { error: "Missing organization ID." };
+export async function deleteStep_SupabaseProject(
+  orgId: string,
+): Promise<DeleteStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
 
   const cp = getControlPlaneClient();
-
-  // Load the org
-  const { data: org, error: orgError } = await cp
+  const { data: org } = await cp
     .from("organizations")
-    .select("id, name, slug, supabase_project_id")
+    .select("supabase_project_id")
     .eq("id", orgId)
     .single();
 
-  if (orgError || !org) {
-    return { error: "Organization not found." };
-  }
-
-  // Delete Supabase project if one exists
-  if (org.supabase_project_id) {
+  if (org?.supabase_project_id) {
     try {
       await deleteSupabaseProject(org.supabase_project_id);
     } catch (err) {
       console.warn("Failed to delete Supabase project:", err);
     }
   }
+  return { ok: true };
+}
 
-  // Delete related records, then the org itself
-  await cp
+export async function deleteStep_OrgLinks(
+  orgId: string,
+): Promise<DeleteStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const cp = getControlPlaneClient();
+  const { error } = await cp
     .from("identity_org_links")
     .delete()
     .eq("organization_id", orgId);
 
-  await cp
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function deleteStep_Sessions(
+  orgId: string,
+): Promise<DeleteStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const cp = getControlPlaneClient();
+  const { error } = await cp
     .from("impersonation_sessions")
     .delete()
     .eq("organization_id", orgId);
 
-  const { error: deleteError } = await cp
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
+
+export async function deleteStep_OrgRecord(
+  orgId: string,
+): Promise<DeleteStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const cp = getControlPlaneClient();
+  const { error } = await cp
     .from("organizations")
     .delete()
     .eq("id", orgId);
 
-  if (deleteError) {
-    return { error: `Failed to delete organization: ${deleteError.message}` };
-  }
+  if (error) return { ok: false, error: error.message };
+  return { ok: true };
+}
 
-  // Audit log
+export async function deleteStep_AuditLog(
+  orgId: string,
+  orgName: string,
+  orgSlug: string,
+): Promise<DeleteStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const cp = getControlPlaneClient();
   await cp.from("platform_audit_log").insert({
-    actor_id: user.id,
+    actor_id: auth.userId,
     action: "org.deleted",
     resource_type: "organization",
     resource_id: orgId,
-    metadata: { name: org.name, slug: org.slug },
+    metadata: { name: orgName, slug: orgSlug },
   });
 
-  redirect("/admin/orgs");
+  return { ok: true };
 }
