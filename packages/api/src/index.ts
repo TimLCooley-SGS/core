@@ -43,3 +43,9 @@ export {
   getAllStaff,
   type StaffWithIdentity,
 } from "./staff";
+
+export {
+  ensureOrgAssetsBucket,
+  uploadOrgLogo,
+  deleteOrgLogo,
+} from "./storage";
