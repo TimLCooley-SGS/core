@@ -48,12 +48,21 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
       ...(options.text ? { text: options.text } : {}),
     });
   } catch (err: unknown) {
-    // Extract detailed error from SendGrid response
-    const sgErr = err as { response?: { body?: { errors?: { message: string; field?: string }[] } } };
-    const details = sgErr.response?.body?.errors
-      ?.map((e) => e.field ? `${e.field}: ${e.message}` : e.message)
-      .join("; ");
-    throw new Error(details || (err instanceof Error ? err.message : "SendGrid error"));
+    // Extract detailed error from SendGrid response (body may be string or object)
+    const sgErr = err as { response?: { statusCode?: number; body?: unknown } };
+    const body = sgErr.response?.body;
+    let details: string | undefined;
+    if (body && typeof body === "object") {
+      const errBody = body as { errors?: { message: string; field?: string }[] };
+      details = errBody.errors
+        ?.map((e) => e.field ? `${e.field}: ${e.message}` : e.message)
+        .join("; ");
+    }
+    if (!details && body) {
+      details = typeof body === "string" ? body : JSON.stringify(body);
+    }
+    const status = sgErr.response?.statusCode ? ` (${sgErr.response.statusCode})` : "";
+    throw new Error(details ? `${details}${status}` : (err instanceof Error ? err.message : "SendGrid error"));
   }
 }
 
