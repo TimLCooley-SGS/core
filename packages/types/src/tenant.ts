@@ -208,3 +208,22 @@ export interface AuditLogEntry {
   ip_address: string | null;
   created_at: string;
 }
+
+export interface Location {
+  id: string;
+  name: string;
+  capacity: number | null;
+  description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BlockedDate {
+  id: string;
+  location_id: string | null;
+  start_date: string;
+  end_date: string;
+  reason: string;
+  created_at: string;
+  updated_at: string;
+}
