@@ -712,7 +712,43 @@ export function buildTenantDbUrl(
   poolerHost: string,
   poolerPort: number = 6543,
 ): string {
-  return `postgresql://postgres.${projectRef}:${dbPassword}@${poolerHost}:${poolerPort}/postgres`;
+  const encodedPassword = encodeURIComponent(dbPassword);
+  return `postgresql://postgres.${projectRef}:${encodedPassword}@${poolerHost}:${poolerPort}/postgres`;
+}
+
+/**
+ * Connect to Postgres with retry logic.
+ * Newly created Supabase projects may take a few seconds for the connection
+ * pooler to register the routing entry, causing "Tenant or user not found"
+ * errors. This retries on that specific error.
+ */
+async function connectWithRetry(
+  connectionString: string,
+  maxRetries = 6,
+  delayMs = 5000,
+): Promise<pg.Client> {
+  let lastError: Error | null = null;
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    const client = new pg.Client({ connectionString });
+    try {
+      await client.connect();
+      return client;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error(String(err));
+      // Only retry on pooler propagation errors
+      if (!lastError.message.includes("Tenant or user not found")) {
+        throw lastError;
+      }
+      console.warn(
+        `Connection attempt ${attempt}/${maxRetries} failed: ${lastError.message}. Retrying in ${delayMs / 1000}s...`,
+      );
+      try { await client.end(); } catch { /* ignore */ }
+      if (attempt < maxRetries) {
+        await new Promise((r) => setTimeout(r, delayMs));
+      }
+    }
+  }
+  throw lastError ?? new Error("Failed to connect after retries");
 }
 
 // ---------------------------------------------------------------------------
@@ -723,8 +759,7 @@ export async function runTenantMigrations(
   databaseUrl: string,
   options?: { seed?: boolean },
 ): Promise<void> {
-  const client = new pg.Client({ connectionString: databaseUrl });
-  await client.connect();
+  const client = await connectWithRetry(databaseUrl);
 
   try {
     await client.query(`
@@ -805,8 +840,7 @@ export async function setupPendingAdmin(
   orgId: string,
   admin: PendingAdmin,
 ): Promise<void> {
-  const tenantClient = new pg.Client({ connectionString: tenantDbUrl });
-  await tenantClient.connect();
+  const tenantClient = await connectWithRetry(tenantDbUrl);
 
   try {
     const {
@@ -860,8 +894,7 @@ export async function setupPendingAdminTenant(
   tenantDbUrl: string,
   admin: PendingAdmin,
 ): Promise<string> {
-  const client = new pg.Client({ connectionString: tenantDbUrl });
-  await client.connect();
+  const client = await connectWithRetry(tenantDbUrl);
 
   try {
     const {
