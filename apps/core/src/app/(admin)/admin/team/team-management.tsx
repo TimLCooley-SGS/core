@@ -23,7 +23,12 @@ import {
 import { Plus, Trash2 } from "lucide-react";
 import type { SgsStaffRole, SgsStaffStatus } from "@sgscore/types";
 import type { StaffWithIdentity } from "@sgscore/api";
-import { addTeamMember, removeTeamMember, updateTeamMemberRole } from "./actions";
+import {
+  addTeamMember,
+  removeTeamMember,
+  deleteTeamMember,
+  updateTeamMemberRole,
+} from "./actions";
 
 const roleColors: Record<SgsStaffRole, string> = {
   admin: "bg-purple-100 text-purple-800",
@@ -52,11 +57,13 @@ function formatDate(dateStr: string): string {
 }
 
 export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
+  const [statusFilter, setStatusFilter] = useState<SgsStaffStatus>("active");
   const [addDialogOpen, setAddDialogOpen] = useState(false);
-  const [removeTarget, setRemoveTarget] = useState<StaffWithIdentity | null>(null);
+  const [actionTarget, setActionTarget] = useState<StaffWithIdentity | null>(null);
 
   const [addState, addAction, addPending] = useActionState(addTeamMember, {});
   const [removeState, removeAction, removePending] = useActionState(removeTeamMember, {});
+  const [deleteState, deleteAction, deletePending] = useActionState(deleteTeamMember, {});
   const [roleState, roleAction] = useActionState(updateTeamMemberRole, {});
 
   // Close add dialog on success
@@ -64,10 +71,14 @@ export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
     setAddDialogOpen(false);
   }
 
-  // Close remove dialog on success
-  if (removeState.success && removeTarget) {
-    setRemoveTarget(null);
+  // Close action dialog on success
+  if ((removeState.success || deleteState.success) && actionTarget) {
+    setActionTarget(null);
   }
+
+  const filtered = members.filter((m) => m.status === statusFilter);
+  const activeCount = members.filter((m) => m.status === "active").length;
+  const inactiveCount = members.filter((m) => m.status === "inactive").length;
 
   return (
     <div className="space-y-4">
@@ -78,8 +89,33 @@ export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
         </div>
       )}
 
-      {/* Add Team Member Dialog */}
-      <div className="flex justify-end">
+      {/* Top bar: filter + add button */}
+      <div className="flex items-center justify-between">
+        <div className="flex gap-1 rounded-lg border bg-muted p-1">
+          <button
+            type="button"
+            onClick={() => setStatusFilter("active")}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              statusFilter === "active"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Active ({activeCount})
+          </button>
+          <button
+            type="button"
+            onClick={() => setStatusFilter("inactive")}
+            className={`rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+              statusFilter === "inactive"
+                ? "bg-background text-foreground shadow-sm"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            Inactive ({inactiveCount})
+          </button>
+        </div>
+
         <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
           <DialogTrigger asChild>
             <Button>
@@ -147,9 +183,9 @@ export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
       </div>
 
       {/* Team Members List */}
-      {members.length === 0 ? (
+      {filtered.length === 0 ? (
         <p className="text-sm text-muted-foreground py-8 text-center">
-          No team members yet.
+          No {statusFilter} team members.
         </p>
       ) : (
         <div className="rounded-md border">
@@ -165,7 +201,7 @@ export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
               </tr>
             </thead>
             <tbody>
-              {members.map((member) => (
+              {filtered.map((member) => (
                 <tr key={member.id} className="border-b last:border-0">
                   <td className="px-4 py-3 font-medium">
                     {displayName(member)}
@@ -174,12 +210,20 @@ export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
                     {member.global_identity.primary_email}
                   </td>
                   <td className="px-4 py-3">
-                    <RoleDropdown
-                      staffId={member.id}
-                      currentRole={member.role}
-                      roleAction={roleAction}
-                      error={roleState.error}
-                    />
+                    {member.status === "active" ? (
+                      <RoleDropdown
+                        staffId={member.id}
+                        currentRole={member.role}
+                        roleAction={roleAction}
+                      />
+                    ) : (
+                      <Badge
+                        variant="secondary"
+                        className={roleColors[member.role]}
+                      >
+                        {member.role}
+                      </Badge>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <Badge
@@ -193,16 +237,14 @@ export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
                     {formatDate(member.created_at)}
                   </td>
                   <td className="px-4 py-3 text-right">
-                    {member.status === "active" && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                        onClick={() => setRemoveTarget(member)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                      onClick={() => setActionTarget(member)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </td>
                 </tr>
               ))}
@@ -211,38 +253,59 @@ export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
         </div>
       )}
 
-      {/* Remove Confirmation Dialog */}
+      {/* Remove / Delete Confirmation Dialog */}
       <Dialog
-        open={removeTarget !== null}
-        onOpenChange={(open) => !open && setRemoveTarget(null)}
+        open={actionTarget !== null}
+        onOpenChange={(open) => !open && setActionTarget(null)}
       >
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Remove Team Member</DialogTitle>
             <DialogDescription>
-              Are you sure you want to remove{" "}
+              What would you like to do with{" "}
               <span className="font-medium">
-                {removeTarget && displayName(removeTarget)}
-              </span>{" "}
-              from the team? They will be set to inactive.
+                {actionTarget && displayName(actionTarget)}
+              </span>
+              ?
             </DialogDescription>
           </DialogHeader>
-          {removeState.error && (
-            <p className="text-sm text-destructive">{removeState.error}</p>
+          {(removeState.error || deleteState.error) && (
+            <p className="text-sm text-destructive">
+              {removeState.error || deleteState.error}
+            </p>
           )}
-          <DialogFooter>
+          <DialogFooter className="flex-col gap-2 sm:flex-col">
+            {actionTarget?.status === "active" && (
+              <form action={removeAction} className="w-full">
+                <input type="hidden" name="staffId" value={actionTarget?.id ?? ""} />
+                <Button
+                  type="submit"
+                  variant="outline"
+                  className="w-full"
+                  disabled={removePending}
+                >
+                  {removePending ? "Deactivating..." : "Mark as Inactive"}
+                </Button>
+              </form>
+            )}
+            <form action={deleteAction} className="w-full">
+              <input type="hidden" name="staffId" value={actionTarget?.id ?? ""} />
+              <Button
+                type="submit"
+                variant="destructive"
+                className="w-full"
+                disabled={deletePending}
+              >
+                {deletePending ? "Deleting..." : "Permanently Delete"}
+              </Button>
+            </form>
             <Button
-              variant="outline"
-              onClick={() => setRemoveTarget(null)}
+              variant="ghost"
+              className="w-full"
+              onClick={() => setActionTarget(null)}
             >
               Cancel
             </Button>
-            <form action={removeAction}>
-              <input type="hidden" name="staffId" value={removeTarget?.id ?? ""} />
-              <Button type="submit" variant="destructive" disabled={removePending}>
-                {removePending ? "Removing..." : "Remove"}
-              </Button>
-            </form>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -254,12 +317,10 @@ function RoleDropdown({
   staffId,
   currentRole,
   roleAction,
-  error,
 }: {
   staffId: string;
   currentRole: SgsStaffRole;
   roleAction: (payload: FormData) => void;
-  error?: string;
 }) {
   function handleRoleChange(newRole: string) {
     if (newRole === currentRole) return;

@@ -206,6 +206,45 @@ export async function removeTeamMember(
   return { success: true };
 }
 
+export async function deleteTeamMember(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const auth = await requireAdminStaff();
+  if ("error" in auth) return { error: auth.error };
+
+  const staffId = formData.get("staffId") as string;
+  if (!staffId) return { error: "Missing staff ID." };
+
+  const cp = getControlPlaneClient();
+
+  // Delete any impersonation sessions referencing this staff member
+  await cp
+    .from("impersonation_sessions")
+    .delete()
+    .eq("sgs_staff_id", staffId);
+
+  const { error: deleteError } = await cp
+    .from("sgs_staff")
+    .delete()
+    .eq("id", staffId);
+
+  if (deleteError) {
+    return { error: `Failed to delete: ${deleteError.message}` };
+  }
+
+  await cp.from("platform_audit_log").insert({
+    actor_id: auth.userId,
+    action: "staff.deleted",
+    resource_type: "sgs_staff",
+    resource_id: staffId,
+    metadata: {},
+  });
+
+  revalidatePath("/admin/team");
+  return { success: true };
+}
+
 export async function updateTeamMemberRole(
   _prev: ActionState,
   formData: FormData,
