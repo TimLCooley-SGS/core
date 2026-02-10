@@ -29,34 +29,22 @@ export default async function TeamPage({
 
   const tenant = getTenantClient(org);
 
-  const [staffResult, rolesResult, personsResult] = await Promise.all([
+  const [staffResult, rolesResult] = await Promise.all([
     tenant
       .from("staff_assignments")
       .select("id, person_id, role_id, status, started_at, person:persons(id, first_name, last_name, email), role:roles(id, name)")
       .order("started_at", { ascending: false }),
     tenant.from("roles").select("id, name, is_system").order("name"),
-    tenant
-      .from("persons")
-      .select("id, first_name, last_name, email")
-      .eq("status", "active")
-      .order("last_name"),
   ]);
 
   const staff = (staffResult.data ?? []) as unknown as StaffMember[];
   const roles = (rolesResult.data ?? []) as OrgRole[];
-  const persons = (personsResult.data ?? []) as {
-    id: string;
-    first_name: string;
-    last_name: string;
-    email: string | null;
-  }[];
 
   return (
     <OrgTeamManagement
       orgSlug={orgSlug}
       staff={staff}
       roles={roles}
-      persons={persons}
     />
   );
 }

@@ -61,11 +61,15 @@ export async function addStaffAssignment(
   formData: FormData,
 ): Promise<ActionState> {
   const orgSlug = formData.get("orgSlug") as string;
-  const personId = formData.get("personId") as string;
+  const email = (formData.get("email") as string)?.trim().toLowerCase();
+  const firstName = (formData.get("firstName") as string)?.trim();
+  const lastName = (formData.get("lastName") as string)?.trim();
   const roleId = formData.get("roleId") as string;
 
   if (!orgSlug) return { error: "Missing org slug." };
-  if (!personId) return { error: "Please select a person." };
+  if (!email) return { error: "Email is required." };
+  if (!firstName) return { error: "First name is required." };
+  if (!lastName) return { error: "Last name is required." };
   if (!roleId) return { error: "Please select a role." };
 
   const auth = await requireStaffManage(orgSlug);
@@ -76,10 +80,35 @@ export async function addStaffAssignment(
 
   const tenant = getTenantClient(org);
 
+  // Find existing person by email, or create a new one
+  let personId: string;
+
+  const { data: existingPerson } = await tenant
+    .from("persons")
+    .select("id")
+    .eq("email", email)
+    .eq("status", "active")
+    .single();
+
+  if (existingPerson) {
+    personId = existingPerson.id;
+  } else {
+    const { data: newPerson, error: personError } = await tenant
+      .from("persons")
+      .insert({ first_name: firstName, last_name: lastName, email })
+      .select("id")
+      .single();
+
+    if (personError) {
+      return { error: `Failed to create person: ${personError.message}` };
+    }
+    personId = newPerson.id;
+  }
+
   // Check for existing active assignment
   const { data: existing } = await tenant
     .from("staff_assignments")
-    .select("id, status")
+    .select("id")
     .eq("person_id", personId)
     .eq("status", "active")
     .single();
@@ -104,7 +133,7 @@ export async function addStaffAssignment(
     action: "create",
     table_name: "staff_assignments",
     record_id: assignment.id,
-    new_values: { person_id: personId, role_id: roleId },
+    new_values: { person_id: personId, role_id: roleId, email, first_name: firstName, last_name: lastName },
   });
 
   revalidatePath(`/org/${orgSlug}/settings/team`);

@@ -3,6 +3,7 @@
 import { useState, useEffect, useActionState, useTransition } from "react";
 import {
   Button,
+  Input,
   Label,
   Badge,
   Card,
@@ -37,7 +38,6 @@ interface OrgTeamManagementProps {
   orgSlug: string;
   staff: StaffMember[];
   roles: OrgRole[];
-  persons: { id: string; first_name: string; last_name: string; email: string | null }[];
 }
 
 const statusColors: Record<string, string> = {
@@ -61,7 +61,6 @@ export function OrgTeamManagement({
   orgSlug,
   staff,
   roles,
-  persons,
 }: OrgTeamManagementProps) {
   const canManage = useHasCapability("staff.manage");
   const [statusFilter, setStatusFilter] = useState<"active" | "inactive">("active");
@@ -111,12 +110,6 @@ export function OrgTeamManagement({
   const filtered = staff.filter((m) => m.status === statusFilter);
   const activeCount = staff.filter((m) => m.status === "active").length;
   const inactiveCount = staff.filter((m) => m.status === "inactive").length;
-
-  // Persons not already assigned as active staff
-  const activePersonIds = new Set(
-    staff.filter((s) => s.status === "active").map((s) => s.person_id),
-  );
-  const availablePersons = persons.filter((p) => !activePersonIds.has(p.id));
 
   return (
     <Card>
@@ -169,21 +162,34 @@ export function OrgTeamManagement({
                 <form action={addAction} className="space-y-4">
                   <input type="hidden" name="orgSlug" value={orgSlug} />
                   <div className="space-y-2">
-                    <Label htmlFor="st-person">Person</Label>
-                    <select
-                      id="st-person"
-                      name="personId"
-                      className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    <Label htmlFor="st-email">Email</Label>
+                    <Input
+                      id="st-email"
+                      name="email"
+                      type="email"
+                      placeholder="staff@example.com"
                       required
-                    >
-                      <option value="">Select a person...</option>
-                      {availablePersons.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.first_name} {p.last_name}
-                          {p.email ? ` (${p.email})` : ""}
-                        </option>
-                      ))}
-                    </select>
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="st-first">First Name</Label>
+                      <Input
+                        id="st-first"
+                        name="firstName"
+                        placeholder="Jane"
+                        required
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="st-last">Last Name</Label>
+                      <Input
+                        id="st-last"
+                        name="lastName"
+                        placeholder="Doe"
+                        required
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="st-role">Role</Label>
