@@ -13,7 +13,8 @@ let initialized = false;
 
 function initEmail(): void {
   if (initialized) return;
-  const apiKey = process.env.SENDGRID_API_KEY?.trim();
+  // Strip any non-printable / invisible characters (common when pasting into env var UIs)
+  const apiKey = process.env.SENDGRID_API_KEY?.replace(/[^\x20-\x7E]/g, "");
   if (!apiKey) {
     throw new Error("SENDGRID_API_KEY environment variable is not set");
   }
