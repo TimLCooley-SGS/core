@@ -73,9 +73,16 @@ export function OrgTeamManagement({
   const [actionPending, startAction] = useTransition();
   const [actionError, setActionError] = useState<string | null>(null);
 
+  const [addWarning, setAddWarning] = useState<string | null>(null);
+
   useEffect(() => {
-    if (addState.success) setAddDialogOpen(false);
-  }, [addState.success]);
+    if (addState.success) {
+      setAddDialogOpen(false);
+      if (addState.warning) {
+        setAddWarning(addState.warning);
+      }
+    }
+  }, [addState.success, addState.warning]);
 
   function handleDeactivate(assignmentId: string) {
     setActionError(null);
@@ -117,6 +124,18 @@ export function OrgTeamManagement({
         <CardTitle>Team</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        {addWarning && (
+          <div className="flex items-start justify-between rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-800">
+            <span>{addWarning}</span>
+            <button
+              type="button"
+              onClick={() => setAddWarning(null)}
+              className="ml-2 shrink-0 text-amber-600 hover:text-amber-800"
+            >
+              &times;
+            </button>
+          </div>
+        )}
         {/* Top bar: filter + add button */}
         <div className="flex items-center justify-between">
           <div className="flex gap-1 rounded-lg border bg-muted p-1">

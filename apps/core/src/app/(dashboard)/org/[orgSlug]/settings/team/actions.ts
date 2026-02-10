@@ -8,10 +8,14 @@ import {
   getTenantClient,
   getSgsStaffByIdentity,
   resolveCapabilityKeys,
+  sendEmail,
+  emailLayout,
 } from "@sgscore/api";
+import type { OrgBranding } from "@sgscore/types";
 
 interface ActionState {
   error?: string;
+  warning?: string;
   success?: boolean;
 }
 
@@ -135,6 +139,41 @@ export async function addStaffAssignment(
     record_id: assignment.id,
     new_values: { person_id: personId, role_id: roleId, email, first_name: firstName, last_name: lastName },
   });
+
+  // Send welcome email
+  try {
+    const { data: role } = await tenant
+      .from("roles")
+      .select("name")
+      .eq("id", roleId)
+      .single();
+
+    const roleName = role?.name ?? "Staff";
+    const branding = (org.settings?.branding ?? {}) as Partial<OrgBranding>;
+    const primaryColor = branding.primaryColor ?? "#702B9E";
+    const logoUrl = branding.logoUrl;
+
+    const body = `
+      <h1 style="margin:0 0 8px;font-size:22px;color:${primaryColor};">Welcome to the Team!</h1>
+      <p style="margin:0 0 16px;color:#555;">You've been added to <strong>${org.name}</strong> as <strong>${roleName}</strong>.</p>
+      <p style="margin:0 0 24px;color:#555;">Sign in to get started.</p>
+      <p style="text-align:center;margin:24px 0;">
+        <a href="https://app.sgscore.com" style="display:inline-block;padding:12px 32px;background:${primaryColor};color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Sign In</a>
+      </p>
+      <p style="margin:16px 0 0;font-size:13px;color:#999;">If you didn't expect this email, you can safely ignore it.</p>`;
+
+    const html = emailLayout(org.name, logoUrl, primaryColor, body);
+
+    await sendEmail({
+      to: email,
+      subject: `You've been added to ${org.name}`,
+      html,
+    });
+  } catch (emailErr) {
+    const msg = emailErr instanceof Error ? emailErr.message : "Unknown error";
+    revalidatePath(`/org/${orgSlug}/settings/team`);
+    return { success: true, warning: `Staff added but welcome email failed: ${msg}` };
+  }
 
   revalidatePath(`/org/${orgSlug}/settings/team`);
   return { success: true };

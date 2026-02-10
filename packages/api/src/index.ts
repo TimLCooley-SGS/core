@@ -30,6 +30,7 @@ export {
 
 export {
   sendEmail,
+  emailLayout,
   sendDonationReceipt,
   sendMembershipWelcome,
   sendTicketConfirmation,

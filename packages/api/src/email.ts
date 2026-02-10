@@ -70,7 +70,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
 // Shared email layout
 // ---------------------------------------------------------------------------
 
-function emailLayout(
+export function emailLayout(
   orgName: string,
   logoUrl: string | undefined,
   primaryColor: string,
