@@ -40,4 +40,6 @@ export {
   getAllOrganizations,
   getOrgByIdAdmin,
   getOrgMemberCount,
+  getAllStaff,
+  type StaffWithIdentity,
 } from "./staff";

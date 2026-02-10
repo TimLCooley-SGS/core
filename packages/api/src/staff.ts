@@ -1,5 +1,9 @@
 import { getControlPlaneClient } from "./control-plane";
-import type { SgsStaff, Organization } from "@sgscore/types";
+import type { SgsStaff, Organization, GlobalIdentity } from "@sgscore/types";
+
+export type StaffWithIdentity = SgsStaff & {
+  global_identity: Pick<GlobalIdentity, "primary_email" | "display_name">;
+};
 
 /**
  * Returns the active sgs_staff record for a given global identity, or null.
@@ -65,4 +69,19 @@ export async function getOrgMemberCount(orgId: string): Promise<number> {
 
   if (error) return 0;
   return count ?? 0;
+}
+
+/**
+ * Returns all sgs_staff records joined with their global_identity.
+ * Ordered by created_at desc. Admin-only.
+ */
+export async function getAllStaff(): Promise<StaffWithIdentity[]> {
+  const cp = getControlPlaneClient();
+  const { data, error } = await cp
+    .from("sgs_staff")
+    .select("*, global_identity:global_identities!inner(primary_email, display_name)")
+    .order("created_at", { ascending: false });
+
+  if (error) throw new Error(`Failed to fetch staff: ${error.message}`);
+  return (data ?? []) as StaffWithIdentity[];
 }

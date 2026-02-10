@@ -14,7 +14,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { label: "Organizations", href: "/admin/orgs", icon: Building2 },
-  { label: "Staff", href: "/admin/staff", icon: Users },
+  { label: "Team", href: "/admin/team", icon: Users },
   { label: "Audit Log", href: "/admin/audit-log", icon: ScrollText },
 ];
 
@@ -54,7 +54,7 @@ export function AdminSidebar({ staffRole }: { staffRole: SgsStaffRole }) {
       </nav>
 
       <div className="border-t border-white/10 p-4">
-        <p className="truncate text-xs text-white/50">Platform Staff</p>
+        <p className="truncate text-xs text-white/50">Platform Team</p>
         <p className="truncate text-sm capitalize text-white/70">
           {staffRole}
         </p>
