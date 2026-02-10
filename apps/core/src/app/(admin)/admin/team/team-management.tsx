@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useActionState } from "react";
+import { useState, useEffect, useActionState } from "react";
 import {
   Button,
   Input,
@@ -66,15 +66,18 @@ export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
   const [deleteState, deleteAction, deletePending] = useActionState(deleteTeamMember, {});
   const [roleState, roleAction] = useActionState(updateTeamMemberRole, {});
 
-  // Close add dialog on success
-  if (addState.success && addDialogOpen) {
-    setAddDialogOpen(false);
-  }
+  // Close dialogs on success (useEffect only fires on value *change*, not stale true)
+  useEffect(() => {
+    if (addState.success) setAddDialogOpen(false);
+  }, [addState.success]);
 
-  // Close action dialog on success
-  if ((removeState.success || deleteState.success) && actionTarget) {
-    setActionTarget(null);
-  }
+  useEffect(() => {
+    if (removeState.success) setActionTarget(null);
+  }, [removeState.success]);
+
+  useEffect(() => {
+    if (deleteState.success) setActionTarget(null);
+  }, [deleteState.success]);
 
   const filtered = members.filter((m) => m.status === statusFilter);
   const activeCount = members.filter((m) => m.status === "active").length;
