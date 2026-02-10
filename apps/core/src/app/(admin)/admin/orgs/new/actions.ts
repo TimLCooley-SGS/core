@@ -1,12 +1,22 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { getControlPlaneClient, getSgsStaffByIdentity, sendEmail } from "@sgscore/api";
-import { provisionOrg } from "@sgscore/api/provisioning";
+import {
+  createSupabaseProject,
+  waitForProject,
+  getApiKeys,
+  deleteSupabaseProject,
+  runTenantMigrations,
+  setupPendingAdminTenant,
+  buildTenantDbUrl,
+  type PendingAdmin,
+} from "@sgscore/api/provisioning";
 
-interface CreateOrgState {
+export interface CreateStepResult {
+  ok: boolean;
   error?: string;
+  orgId?: string;
 }
 
 function slugify(text: string): string {
@@ -16,45 +26,45 @@ function slugify(text: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-export async function createOrganization(
-  _prev: CreateOrgState,
-  formData: FormData,
-): Promise<CreateOrgState> {
+async function requireStaff(): Promise<{ userId: string } | { error: string }> {
   const supabase = await createSupabaseServerClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-
   if (!user) return { error: "Not authenticated." };
-
   const staff = await getSgsStaffByIdentity(user.id);
   if (!staff) return { error: "Not authorized." };
+  return { userId: user.id };
+}
+
+// ---------------------------------------------------------------------------
+// Step 1: Validate form, create user, create org record
+// ---------------------------------------------------------------------------
+
+export async function createStep_Setup(
+  formData: FormData,
+): Promise<CreateStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
 
   const name = (formData.get("name") as string)?.trim();
   const firstName = (formData.get("firstName") as string)?.trim();
   const lastName = (formData.get("lastName") as string)?.trim();
   const email = (formData.get("email") as string)?.trim().toLowerCase();
 
-  if (!name) {
-    return { error: "Organization name is required." };
-  }
-
+  if (!name) return { ok: false, error: "Organization name is required." };
   if (!firstName || !lastName || !email) {
-    return { error: "Contact first name, last name, and email are required." };
+    return { ok: false, error: "Contact first name, last name, and email are required." };
   }
 
-  // Generate slug from org name
   const baseSlug = slugify(name);
-
   if (baseSlug.length < 2) {
-    return {
-      error: "Organization name is too short to generate a valid URL slug.",
-    };
+    return { ok: false, error: "Organization name is too short to generate a valid URL slug." };
   }
 
   const cp = getControlPlaneClient();
 
-  // Find a unique slug — append a suffix if the base slug is taken
+  // Find a unique slug
   let slug = baseSlug;
   const { data: conflicts } = await cp
     .from("organizations")
@@ -65,14 +75,12 @@ export async function createOrganization(
     const taken = new Set(conflicts.map((r) => r.slug));
     if (taken.has(baseSlug)) {
       let suffix = 2;
-      while (taken.has(`${baseSlug}-${suffix}`)) {
-        suffix++;
-      }
+      while (taken.has(`${baseSlug}-${suffix}`)) suffix++;
       slug = `${baseSlug}-${suffix}`;
     }
   }
 
-  // Create user without sending email — we'll send the welcome email after provisioning
+  // Create user without sending email
   const fullName = `${firstName} ${lastName}`;
   let authUserId: string;
 
@@ -84,26 +92,21 @@ export async function createOrganization(
     });
 
   if (createError) {
-    // User already exists — look up their ID
     if (createError.message?.includes("already been registered")) {
       const { data: listData, error: listError } =
         await cp.auth.admin.listUsers();
-
       if (listError) {
-        return { error: `Failed to look up existing user: ${listError.message}` };
+        return { ok: false, error: `Failed to look up existing user: ${listError.message}` };
       }
-
       const existingUser = listData.users.find(
         (u) => u.email?.toLowerCase() === email,
       );
-
       if (!existingUser) {
-        return { error: "User appears to exist but could not be found." };
+        return { ok: false, error: "User appears to exist but could not be found." };
       }
-
       authUserId = existingUser.id;
     } else {
-      return { error: `Failed to create user: ${createError.message}` };
+      return { ok: false, error: `Failed to create user: ${createError.message}` };
     }
   } else {
     authUserId = createData.user.id;
@@ -111,15 +114,11 @@ export async function createOrganization(
 
   // Upsert global identity
   await cp.from("global_identities").upsert(
-    {
-      id: authUserId,
-      primary_email: email,
-      display_name: fullName,
-    },
+    { id: authUserId, primary_email: email, display_name: fullName },
     { onConflict: "id" },
   );
 
-  // Create the organization with pending admin in settings
+  // Create org record
   const { data: org, error: insertError } = await cp
     .from("organizations")
     .insert({
@@ -140,38 +139,230 @@ export async function createOrganization(
     .single();
 
   if (insertError || !org) {
-    return { error: `Failed to create organization: ${insertError?.message ?? "Unknown error"}` };
+    return { ok: false, error: `Failed to create organization: ${insertError?.message ?? "Unknown error"}` };
   }
 
-  // Write audit log
+  // Audit log
   await cp.from("platform_audit_log").insert({
-    actor_id: user.id,
+    actor_id: auth.userId,
     action: "org.created",
     resource_type: "organization",
     resource_id: org.id,
     metadata: { name, slug, admin_email: email },
   });
 
-  // Provision the Supabase project inline (30-120s)
-  try {
-    await provisionOrg(org.id);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
-    return { error: `Organization created but provisioning failed: ${message}. The org has been archived.` };
-  }
+  return { ok: true, orgId: org.id };
+}
 
-  // Provisioning succeeded — send welcome email with magic link
+// ---------------------------------------------------------------------------
+// Step 2: Create Supabase project
+// ---------------------------------------------------------------------------
+
+export async function createStep_CreateProject(
+  orgId: string,
+): Promise<CreateStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const cp = getControlPlaneClient();
+  const { data: org } = await cp
+    .from("organizations")
+    .select("slug")
+    .eq("id", orgId)
+    .single();
+  if (!org) return { ok: false, error: "Organization not found." };
+
+  const dbPassword = process.env.SUPABASE_DB_PASSWORD;
+  if (!dbPassword) return { ok: false, error: "SUPABASE_DB_PASSWORD is required." };
+
+  try {
+    const project = await createSupabaseProject(`sgscore-${org.slug}`, dbPassword);
+    await cp
+      .from("organizations")
+      .update({ supabase_project_id: project.id })
+      .eq("id", orgId);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Failed to create project" };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step 3: Wait for project to be ready
+// ---------------------------------------------------------------------------
+
+export async function createStep_WaitForProject(
+  orgId: string,
+): Promise<CreateStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const cp = getControlPlaneClient();
+  const { data: org } = await cp
+    .from("organizations")
+    .select("supabase_project_id")
+    .eq("id", orgId)
+    .single();
+  if (!org?.supabase_project_id) return { ok: false, error: "No Supabase project found." };
+
+  try {
+    await waitForProject(org.supabase_project_id);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Project did not become ready" };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step 4: Get API keys + run migrations
+// ---------------------------------------------------------------------------
+
+export async function createStep_ConfigureDb(
+  orgId: string,
+): Promise<CreateStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const dbPassword = process.env.SUPABASE_DB_PASSWORD;
+  if (!dbPassword) return { ok: false, error: "SUPABASE_DB_PASSWORD is required." };
+
+  const cp = getControlPlaneClient();
+  const { data: org } = await cp
+    .from("organizations")
+    .select("supabase_project_id")
+    .eq("id", orgId)
+    .single();
+  if (!org?.supabase_project_id) return { ok: false, error: "No Supabase project found." };
+
+  try {
+    const keys = await getApiKeys(org.supabase_project_id);
+    const supabaseUrl = `https://${org.supabase_project_id}.supabase.co`;
+    const tenantDbUrl = buildTenantDbUrl(org.supabase_project_id, dbPassword);
+
+    await runTenantMigrations(tenantDbUrl, { seed: true });
+
+    await cp
+      .from("organizations")
+      .update({
+        supabase_url: supabaseUrl,
+        supabase_anon_key: keys.anon,
+        supabase_service_key: keys.service_role,
+      })
+      .eq("id", orgId);
+
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Failed to configure database" };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step 5: Set up admin in tenant DB + create identity_org_link
+// ---------------------------------------------------------------------------
+
+export async function createStep_SetupAdmin(
+  orgId: string,
+): Promise<CreateStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const dbPassword = process.env.SUPABASE_DB_PASSWORD;
+  if (!dbPassword) return { ok: false, error: "SUPABASE_DB_PASSWORD is required." };
+
+  const cp = getControlPlaneClient();
+  const { data: org } = await cp
+    .from("organizations")
+    .select("supabase_project_id, settings")
+    .eq("id", orgId)
+    .single();
+  if (!org?.supabase_project_id) return { ok: false, error: "No Supabase project found." };
+
+  const admin = (org.settings as { pending_admin?: PendingAdmin })?.pending_admin;
+  if (!admin) return { ok: false, error: "No pending admin found in org settings." };
+
+  try {
+    const tenantDbUrl = buildTenantDbUrl(org.supabase_project_id, dbPassword);
+    const personId = await setupPendingAdminTenant(tenantDbUrl, admin);
+
+    await cp.from("identity_org_links").insert({
+      global_identity_id: admin.global_identity_id,
+      organization_id: orgId,
+      tenant_person_id: personId,
+      has_staff_access: true,
+      has_patron_access: true,
+    });
+
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: err instanceof Error ? err.message : "Failed to set up admin" };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Step 6: Activate organization
+// ---------------------------------------------------------------------------
+
+export async function createStep_Activate(
+  orgId: string,
+): Promise<CreateStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const cp = getControlPlaneClient();
+  const { data: org } = await cp
+    .from("organizations")
+    .select("name, slug")
+    .eq("id", orgId)
+    .single();
+
+  await cp
+    .from("organizations")
+    .update({ status: "active" })
+    .eq("id", orgId);
+
+  await cp.from("platform_audit_log").insert({
+    actor_id: auth.userId,
+    action: "org.provisioned",
+    resource_type: "organization",
+    resource_id: orgId,
+    metadata: { name: org?.name, slug: org?.slug },
+  });
+
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Step 7: Send welcome email
+// ---------------------------------------------------------------------------
+
+export async function createStep_SendWelcome(
+  orgId: string,
+): Promise<CreateStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const cp = getControlPlaneClient();
+  const { data: org } = await cp
+    .from("organizations")
+    .select("name, settings")
+    .eq("id", orgId)
+    .single();
+  if (!org) return { ok: false, error: "Organization not found." };
+
+  const admin = (org.settings as { pending_admin?: PendingAdmin })?.pending_admin;
+  if (!admin) return { ok: true }; // No admin to email — not an error
+
   try {
     const { data: linkData } = await cp.auth.admin.generateLink({
       type: "magiclink",
-      email,
+      email: admin.email,
     });
 
     const magicLink = linkData?.properties?.action_link;
 
     await sendEmail({
-      to: email,
-      subject: `Welcome to ${name} on SGS Core`,
+      to: admin.email,
+      subject: `Welcome to ${org.name} on SGS Core`,
       html: `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
@@ -183,8 +374,8 @@ export async function createOrganization(
           <h2 style="margin:0;color:#ffffff;">SGS Core</h2>
         </td></tr>
         <tr><td style="padding:32px;">
-          <h1 style="margin:0 0 8px;font-size:22px;color:#702B9E;">Welcome, ${firstName}!</h1>
-          <p style="margin:0 0 16px;color:#555;">Your organization <strong>${name}</strong> has been set up and is ready to go.</p>
+          <h1 style="margin:0 0 8px;font-size:22px;color:#702B9E;">Welcome, ${admin.first_name}!</h1>
+          <p style="margin:0 0 16px;color:#555;">Your organization <strong>${org.name}</strong> has been set up and is ready to go.</p>
           <p style="margin:0 0 24px;color:#555;">You've been assigned as the organization admin. Click the button below to sign in and get started.</p>
           ${magicLink ? `<p style="text-align:center;margin:24px 0;"><a href="${magicLink}" style="display:inline-block;padding:12px 32px;background:#702B9E;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Sign In to SGS Core</a></p>` : `<p style="margin:0 0 16px;color:#555;">Visit <strong>app.sgscore.com</strong> and sign in with this email address to get started.</p>`}
           <p style="margin:16px 0 0;font-size:13px;color:#999;">If you didn't expect this email, you can safely ignore it.</p>
@@ -203,5 +394,38 @@ export async function createOrganization(
     console.error("Failed to send welcome email:", emailErr);
   }
 
-  redirect(`/admin/orgs/${org.id}`);
+  return { ok: true };
+}
+
+// ---------------------------------------------------------------------------
+// Cleanup: delete Supabase project + archive org on failure
+// ---------------------------------------------------------------------------
+
+export async function createStep_Cleanup(
+  orgId: string,
+): Promise<CreateStepResult> {
+  const auth = await requireStaff();
+  if ("error" in auth) return { ok: false, error: auth.error };
+
+  const cp = getControlPlaneClient();
+  const { data: org } = await cp
+    .from("organizations")
+    .select("supabase_project_id")
+    .eq("id", orgId)
+    .single();
+
+  if (org?.supabase_project_id) {
+    try {
+      await deleteSupabaseProject(org.supabase_project_id);
+    } catch (err) {
+      console.warn("Failed to clean up Supabase project:", err);
+    }
+  }
+
+  await cp
+    .from("organizations")
+    .update({ status: "archived" })
+    .eq("id", orgId);
+
+  return { ok: true };
 }

@@ -653,6 +653,23 @@ WHERE r.name = 'Volunteer'
 ];
 
 // ---------------------------------------------------------------------------
+// Database URL helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a tenant database URL using the Supabase connection pooler.
+ * Direct hostnames (db.{ref}.supabase.co) fail DNS on Vercel (IPv6).
+ * Uses transaction mode (port 6543) which works for DDL in explicit transactions.
+ */
+export function buildTenantDbUrl(
+  projectRef: string,
+  dbPassword: string,
+): string {
+  // All tenant projects are created in us-east-1
+  return `postgresql://postgres.${projectRef}:${dbPassword}@aws-0-us-east-1.pooler.supabase.com:6543/postgres`;
+}
+
+// ---------------------------------------------------------------------------
 // Tenant migration runner
 // ---------------------------------------------------------------------------
 
@@ -789,6 +806,50 @@ export async function setupPendingAdmin(
   }
 }
 
+/**
+ * Tenant-only admin setup (creates person + assigns role in tenant DB).
+ * Returns the tenant person ID for use in identity_org_links.
+ */
+export async function setupPendingAdminTenant(
+  tenantDbUrl: string,
+  admin: PendingAdmin,
+): Promise<string> {
+  const client = new pg.Client({ connectionString: tenantDbUrl });
+  await client.connect();
+
+  try {
+    const {
+      rows: [person],
+    } = await client.query(
+      `INSERT INTO persons (first_name, last_name, display_name, email, global_identity_id, login_enabled)
+       VALUES ($1, $2, $3, $4, $5, true)
+       RETURNING id`,
+      [
+        admin.first_name,
+        admin.last_name,
+        admin.full_name,
+        admin.email,
+        admin.global_identity_id,
+      ],
+    );
+    const personId = person.id as string;
+
+    const { rows: roleRows } = await client.query(
+      `SELECT id FROM roles WHERE name = 'Org Admin' AND is_system = true LIMIT 1`,
+    );
+    if (roleRows.length > 0) {
+      await client.query(
+        `INSERT INTO staff_assignments (person_id, role_id) VALUES ($1, $2)`,
+        [personId, roleRows[0].id],
+      );
+    }
+
+    return personId;
+  } finally {
+    await client.end();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Main provisioning orchestrator
 // ---------------------------------------------------------------------------
@@ -855,7 +916,7 @@ export async function provisionOrg(orgId: string): Promise<void> {
       const keys = await getApiKeys(projectRef);
       const supabaseUrl = `https://${projectRef}.supabase.co`;
 
-      const tenantDbUrl = `postgresql://postgres:${dbPassword}@db.${projectRef}.supabase.co:5432/postgres`;
+      const tenantDbUrl = buildTenantDbUrl(projectRef, dbPassword);
       console.log("Running tenant migrations...");
       await runTenantMigrations(tenantDbUrl, { seed: true });
 
