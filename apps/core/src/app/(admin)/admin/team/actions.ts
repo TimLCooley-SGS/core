@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
-import { getControlPlaneClient, getSgsStaffByIdentity } from "@sgscore/api";
+import { getControlPlaneClient, getSgsStaffByIdentity, sendEmail } from "@sgscore/api";
 import type { SgsStaffRole } from "@sgscore/types";
 
 interface ActionState {
@@ -122,6 +122,50 @@ export async function addTeamMember(
     resource_id: globalIdentityId,
     metadata: { email, role },
   });
+
+  // Send welcome email with magic link
+  try {
+    const { data: linkData, error: linkError } = await cp.auth.admin.generateLink({
+      type: "magiclink",
+      email,
+    });
+
+    const magicLink = linkError ? null : linkData?.properties?.action_link;
+    const roleName = role.charAt(0).toUpperCase() + role.slice(1);
+
+    await sendEmail({
+      to: email,
+      subject: "You've been added to the SGS Platform Team",
+      html: `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8" /><meta name="viewport" content="width=device-width,initial-scale=1" /></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;color:#1a1a1a;background:#f5f5f5;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 16px;">
+    <tr><td align="center">
+      <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:8px;overflow:hidden;">
+        <tr><td style="padding:24px 32px;background:#702B9E;text-align:center;">
+          <h2 style="margin:0;color:#ffffff;">SGS Platform</h2>
+        </td></tr>
+        <tr><td style="padding:32px;">
+          <h1 style="margin:0 0 8px;font-size:22px;color:#702B9E;">Welcome to the Team!</h1>
+          <p style="margin:0 0 16px;color:#555;">You've been added to the SGS platform team as <strong>${roleName}</strong>.</p>
+          <p style="margin:0 0 24px;color:#555;">Click the button below to sign in and get started.</p>
+          ${magicLink ? `<p style="text-align:center;margin:24px 0;"><a href="${magicLink}" style="display:inline-block;padding:12px 32px;background:#702B9E;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Sign In to SGS Platform</a></p>` : `<p style="margin:0 0 16px;color:#555;">Visit <strong>app.sgscore.com</strong> and sign in with this email address to get started.</p>`}
+          <p style="margin:16px 0 0;font-size:13px;color:#999;">If you didn't expect this email, you can safely ignore it.</p>
+        </td></tr>
+        <tr><td style="padding:16px 32px;border-top:1px solid #e5e5e5;font-size:12px;color:#999;text-align:center;">
+          Sent by <a href="https://sgscore.com" style="color:#702B9E;text-decoration:none;">SGS Core</a>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`,
+    });
+  } catch (emailErr) {
+    // Don't fail the whole operation if the email fails — the member was still added
+    console.warn("Failed to send team welcome email:", emailErr);
+  }
 
   revalidatePath("/admin/team");
   return { success: true };
