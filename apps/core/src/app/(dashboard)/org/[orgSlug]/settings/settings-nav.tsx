@@ -12,7 +12,8 @@ interface NavItem {
 
 const items: NavItem[] = [
   { label: "General", segment: "general" },
-  { label: "Location", segment: "location" },
+  { label: "Locations", segment: "location" },
+  { label: "Team", segment: "team" },
 ];
 
 export function SettingsNav() {
