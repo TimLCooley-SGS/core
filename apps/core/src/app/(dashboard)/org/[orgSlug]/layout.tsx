@@ -8,6 +8,8 @@ import {
   getSgsStaffByIdentity,
 } from "@sgscore/api";
 import { OrgProvider } from "@/components/org-provider";
+import { Sidebar } from "@/components/sidebar";
+import { Topbar } from "@/components/topbar";
 
 export default async function OrgLayout({
   children,
@@ -27,6 +29,17 @@ export default async function OrgLayout({
 
   const org = await getOrgBySlug(orgSlug);
   if (!org) redirect("/org-picker");
+
+  const initials = (
+    user.user_metadata?.display_name ??
+    user.email ??
+    "?"
+  )
+    .split(/\s+/)
+    .map((w: string) => w[0])
+    .join("")
+    .toUpperCase()
+    .slice(0, 2);
 
   // Resolve user's capabilities for this org
   const cp = getControlPlaneClient();
@@ -63,7 +76,13 @@ export default async function OrgLayout({
       org={{ id: org.id, name: org.name, slug: org.slug }}
       capabilities={capabilities}
     >
-      {children}
+      <div className="flex h-screen">
+        <Sidebar />
+        <div className="flex flex-1 flex-col overflow-hidden">
+          <Topbar initials={initials} />
+          <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        </div>
+      </div>
     </OrgProvider>
   );
 }
