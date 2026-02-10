@@ -1,5 +1,6 @@
 // Primitives
 export { Button, buttonVariants, type ButtonProps } from "./components/button";
+export { Checkbox } from "./components/checkbox";
 export { Input } from "./components/input";
 export { Label } from "./components/label";
 
@@ -30,6 +31,18 @@ export {
   DialogTitle,
   DialogDescription,
 } from "./components/dialog";
+export {
+  Sheet,
+  SheetPortal,
+  SheetOverlay,
+  SheetClose,
+  SheetTrigger,
+  SheetContent,
+  SheetHeader,
+  SheetFooter,
+  SheetTitle,
+  SheetDescription,
+} from "./components/sheet";
 export {
   DropdownMenu,
   DropdownMenuTrigger,
