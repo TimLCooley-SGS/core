@@ -23,7 +23,7 @@ function initEmail(): void {
 }
 
 function getFromEmail(): string {
-  return process.env.SENDGRID_FROM_EMAIL?.replace(/[^\x20-\x7E]/g, "") ?? "noreply@sgscore.com";
+  return process.env.SENDGRID_FROM_EMAIL?.replace(/[^\x20-\x7E]/g, "") ?? "admin@chumem.com";
 }
 
 // ---------------------------------------------------------------------------
