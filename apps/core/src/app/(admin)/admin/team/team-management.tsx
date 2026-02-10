@@ -71,6 +71,13 @@ export function TeamManagement({ members }: { members: StaffWithIdentity[] }) {
 
   return (
     <div className="space-y-4">
+      {/* Warning banner (e.g. email failed) */}
+      {addState.warning && (
+        <div className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+          {addState.warning}
+        </div>
+      )}
+
       {/* Add Team Member Dialog */}
       <div className="flex justify-end">
         <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>

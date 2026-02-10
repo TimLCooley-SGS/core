@@ -7,6 +7,7 @@ import type { SgsStaffRole } from "@sgscore/types";
 
 interface ActionState {
   error?: string;
+  warning?: string;
   success?: boolean;
 }
 
@@ -163,8 +164,9 @@ export async function addTeamMember(
 </html>`,
     });
   } catch (emailErr) {
-    // Don't fail the whole operation if the email fails — the member was still added
-    console.warn("Failed to send team welcome email:", emailErr);
+    const msg = emailErr instanceof Error ? emailErr.message : "Unknown error";
+    revalidatePath("/admin/team");
+    return { success: true, warning: `Member added but welcome email failed: ${msg}` };
   }
 
   revalidatePath("/admin/team");
