@@ -39,13 +39,22 @@ interface SendEmailOptions {
 
 export async function sendEmail(options: SendEmailOptions): Promise<void> {
   initEmail();
-  await sgMail.send({
-    to: options.to,
-    from: getFromEmail(),
-    subject: options.subject,
-    html: options.html,
-    ...(options.text ? { text: options.text } : {}),
-  });
+  try {
+    await sgMail.send({
+      to: options.to,
+      from: getFromEmail(),
+      subject: options.subject,
+      html: options.html,
+      ...(options.text ? { text: options.text } : {}),
+    });
+  } catch (err: unknown) {
+    // Extract detailed error from SendGrid response
+    const sgErr = err as { response?: { body?: { errors?: { message: string; field?: string }[] } } };
+    const details = sgErr.response?.body?.errors
+      ?.map((e) => e.field ? `${e.field}: ${e.message}` : e.message)
+      .join("; ");
+    throw new Error(details || (err instanceof Error ? err.message : "SendGrid error"));
+  }
 }
 
 // ---------------------------------------------------------------------------
