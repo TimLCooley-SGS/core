@@ -416,3 +416,47 @@ export interface TicketPriceType {
   created_at: string;
   updated_at: string;
 }
+
+/* ── Ticket Designs ── */
+
+export interface TicketDesignFieldConfig {
+  guest_name: boolean;
+  date: boolean;
+  time: boolean;
+  barcode: boolean;
+  event_name: boolean;
+  location: boolean;
+  ticket_price: boolean;
+  ticket_number: boolean;
+  order_number: boolean;
+  registrant_name: boolean;
+}
+
+export type TicketDesignFieldKey = keyof TicketDesignFieldConfig;
+
+export interface TicketDesignOptions {
+  mobile_pdf: boolean;
+  print_tickets: boolean;
+  download_tickets: boolean;
+  display_tickets_first: boolean;
+  qr_code: boolean;
+}
+
+export type TicketDesignOptionKey = keyof TicketDesignOptions;
+
+export interface TicketDesign {
+  id: string;
+  name: string;
+  status: MembershipPlanStatus;
+  field_config: TicketDesignFieldConfig;
+  options: TicketDesignOptions;
+  background_color: string;
+  font_color: string;
+  body_text: string;
+  terms_text: string;
+  is_default: boolean;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
