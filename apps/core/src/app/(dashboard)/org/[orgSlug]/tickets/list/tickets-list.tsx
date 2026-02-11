@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useActionState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import {
   Button,
   Badge,
@@ -20,14 +21,16 @@ import {
   DropdownMenuTrigger,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
 } from "@sgscore/ui";
-import { Plus, MoreVertical, Copy, Archive, Trash2 } from "lucide-react";
+import { Plus, MoreVertical, Copy, Archive, Trash2, Pencil, Globe, GlobeLock } from "lucide-react";
 import { useHasCapability } from "@/components/org-provider";
 import type { TicketType } from "@sgscore/types/tenant";
 import {
   archiveTicketType,
   deleteTicketType,
   duplicateTicketType,
+  publishTicketType,
 } from "./actions";
 
 interface TicketsListProps {
@@ -47,6 +50,7 @@ const modeLabel: Record<string, string> = {
 
 export function TicketsList({ orgSlug, tickets }: TicketsListProps) {
   const canManage = useHasCapability("tickets.manage");
+  const router = useRouter();
 
   // Archive dialog
   const [archiveOpen, setArchiveOpen] = useState(false);
@@ -60,6 +64,9 @@ export function TicketsList({ orgSlug, tickets }: TicketsListProps) {
 
   // Duplicate
   const [dupState, dupAction, dupPending] = useActionState(duplicateTicketType, {});
+
+  // Publish / Unpublish
+  const [pubState, pubAction, pubPending] = useActionState(publishTicketType, {});
 
   useEffect(() => {
     if (archiveState.success) {
@@ -108,6 +115,13 @@ export function TicketsList({ orgSlug, tickets }: TicketsListProps) {
     dupAction(fd);
   }
 
+  function handlePublishToggle(ticketId: string) {
+    const fd = new FormData();
+    fd.append("orgSlug", orgSlug);
+    fd.append("ticketId", ticketId);
+    pubAction(fd);
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -124,6 +138,9 @@ export function TicketsList({ orgSlug, tickets }: TicketsListProps) {
 
       {dupState.error && (
         <p className="text-sm text-destructive">{dupState.error}</p>
+      )}
+      {pubState.error && (
+        <p className="text-sm text-destructive">{pubState.error}</p>
       )}
 
       {tickets.length === 0 ? (
@@ -176,6 +193,29 @@ export function TicketsList({ orgSlug, tickets }: TicketsListProps) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onClick={() => router.push(`/org/${orgSlug}/tickets/list/${ticket.id}`)}
+                      >
+                        <Pencil className="mr-2 h-4 w-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        onClick={() => handlePublishToggle(ticket.id)}
+                        disabled={pubPending}
+                      >
+                        {ticket.status === "active" ? (
+                          <>
+                            <GlobeLock className="mr-2 h-4 w-4" />
+                            Unpublish
+                          </>
+                        ) : (
+                          <>
+                            <Globe className="mr-2 h-4 w-4" />
+                            Publish
+                          </>
+                        )}
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem
                         onClick={() => handleDuplicate(ticket.id)}
                         disabled={dupPending}

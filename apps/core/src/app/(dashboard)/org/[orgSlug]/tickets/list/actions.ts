@@ -363,6 +363,58 @@ export async function updateTicketType(
   return { success: true, ticketId };
 }
 
+export async function publishTicketType(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const orgSlug = formData.get("orgSlug") as string;
+  const ticketId = formData.get("ticketId") as string;
+
+  if (!orgSlug) return { error: "Missing org slug." };
+  if (!ticketId) return { error: "Missing ticket ID." };
+
+  const auth = await requireTicketManage(orgSlug);
+  if ("error" in auth) return { error: auth.error };
+
+  const org = await getOrgBySlug(orgSlug);
+  if (!org) return { error: "Organization not found." };
+
+  const tenant = getTenantClient(org);
+
+  const { data: existing } = await tenant
+    .from("ticket_types")
+    .select("status")
+    .eq("id", ticketId)
+    .single();
+
+  if (!existing) return { error: "Ticket not found." };
+
+  const newStatus = existing.status === "active" ? "draft" : "active";
+
+  const { error: updateError } = await tenant
+    .from("ticket_types")
+    .update({ status: newStatus, updated_by: auth.tenantPersonId })
+    .eq("id", ticketId);
+
+  if (updateError) {
+    return { error: `Failed to update status: ${updateError.message}` };
+  }
+
+  await tenant.from("audit_log").insert({
+    actor_person_id: auth.tenantPersonId,
+    actor_type: auth.tenantPersonId ? "staff" : ("sgs_support" as const),
+    action: "update" as const,
+    table_name: "ticket_types",
+    record_id: ticketId,
+    old_values: { status: existing.status },
+    new_values: { status: newStatus },
+  });
+
+  revalidatePath(`/org/${orgSlug}/tickets/list`);
+  revalidatePath(`/org/${orgSlug}/tickets/list/${ticketId}`);
+  return { success: true };
+}
+
 export async function archiveTicketType(
   _prev: ActionState,
   formData: FormData,
