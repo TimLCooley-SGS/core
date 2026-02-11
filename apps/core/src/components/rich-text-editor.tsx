@@ -73,6 +73,7 @@ export function RichTextEditor({
         : []),
     ],
     content,
+    autofocus: false,
     editorProps: {
       attributes: {
         class: `prose prose-sm max-w-none p-3 focus:outline-none`,
