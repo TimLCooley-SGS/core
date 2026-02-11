@@ -58,11 +58,16 @@ function AccordionStep({
   children: React.ReactNode;
 }) {
   return (
-    <div className="border rounded-lg">
+    <div className="border rounded-lg overflow-hidden">
       <button
         type="button"
         onClick={onToggle}
-        className="flex w-full items-center gap-3 px-4 py-3 text-left"
+        className={cn(
+          "flex w-full items-center gap-3 px-4 py-3 text-left transition-colors",
+          isOpen
+            ? "bg-primary text-primary-foreground"
+            : "bg-primary/10",
+        )}
       >
         <span
           className={cn(
@@ -70,8 +75,8 @@ function AccordionStep({
             isComplete
               ? "bg-green-600 text-white"
               : isOpen
-                ? "bg-primary text-primary-foreground"
-                : "bg-muted text-muted-foreground",
+                ? "bg-white text-primary"
+                : "bg-primary text-primary-foreground",
           )}
         >
           {isComplete ? <Check className="h-4 w-4" /> : step}
@@ -79,12 +84,12 @@ function AccordionStep({
         <span className="flex-1 text-sm font-medium">{title}</span>
         <ChevronDown
           className={cn(
-            "h-4 w-4 text-muted-foreground transition-transform duration-200",
-            isOpen && "rotate-180",
+            "h-4 w-4 transition-transform duration-200",
+            isOpen ? "text-primary-foreground rotate-180" : "text-primary",
           )}
         />
       </button>
-      {isOpen && <div className="px-4 pb-4 space-y-4">{children}</div>}
+      {isOpen && <div className="px-4 pb-4 pt-4 space-y-4">{children}</div>}
     </div>
   );
 }
@@ -95,18 +100,18 @@ function AccordionStep({
 
 interface PriceTypeRow {
   name: string;
-  price_cents: number | null;
-  day_prices: DayPrices | null;
-  target_price_cents: number | null;
-  tax_rate: number;
+  price: string;
+  day_prices: Record<string, string>;
+  target_price: string;
+  tax_rate: string;
 }
 
-const EMPTY_DAY_PRICES: DayPrices = {
-  mon: null, tue: null, wed: null, thu: null,
-  fri: null, sat: null, sun: null,
+const EMPTY_DAY_PRICES_STR: Record<string, string> = {
+  mon: "", tue: "", wed: "", thu: "",
+  fri: "", sat: "", sun: "",
 };
 
-const DAY_LABELS: { key: keyof DayPrices; label: string }[] = [
+const DAY_LABELS: { key: string; label: string }[] = [
   { key: "mon", label: "Mon" },
   { key: "tue", label: "Tue" },
   { key: "wed", label: "Wed" },
@@ -119,11 +124,33 @@ const DAY_LABELS: { key: keyof DayPrices; label: string }[] = [
 function defaultPriceRow(): PriceTypeRow {
   return {
     name: "",
-    price_cents: null,
-    day_prices: null,
-    target_price_cents: null,
-    tax_rate: 0,
+    price: "",
+    day_prices: { ...EMPTY_DAY_PRICES_STR },
+    target_price: "",
+    tax_rate: "",
   };
+}
+
+function centsToDollars(cents: number | null): string {
+  if (cents === null || cents === undefined) return "";
+  return (cents / 100).toString();
+}
+
+function dollarsToCents(val: string): number | null {
+  if (!val) return null;
+  const num = parseFloat(val);
+  return isNaN(num) ? null : Math.round(num * 100);
+}
+
+function rateToPercent(rate: number): string {
+  if (!rate) return "";
+  return (rate * 100).toString();
+}
+
+function percentToRate(val: string): number {
+  if (!val) return 0;
+  const num = parseFloat(val);
+  return isNaN(num) ? 0 : num / 100;
 }
 
 // ---------------------------------------------------------------------------
@@ -208,10 +235,17 @@ export function TicketEditor({
     if (existingPriceTypes && existingPriceTypes.length > 0) {
       return existingPriceTypes.map((pt) => ({
         name: pt.name,
-        price_cents: pt.price_cents,
-        day_prices: pt.day_prices,
-        target_price_cents: pt.target_price_cents,
-        tax_rate: pt.tax_rate,
+        price: centsToDollars(pt.price_cents),
+        day_prices: pt.day_prices
+          ? Object.fromEntries(
+              DAY_LABELS.map(({ key }) => [
+                key,
+                centsToDollars((pt.day_prices as unknown as Record<string, number | null>)?.[key] ?? null),
+              ]),
+            )
+          : { ...EMPTY_DAY_PRICES_STR },
+        target_price: centsToDollars(pt.target_price_cents),
+        tax_rate: rateToPercent(pt.tax_rate),
       }));
     }
     return [defaultPriceRow()];
@@ -425,24 +459,24 @@ export function TicketEditor({
     fd.append("sellingChannels", JSON.stringify(sellingChannels));
     fd.append("deliveryFormats", JSON.stringify(deliveryFormats));
     fd.append("emailSettings", JSON.stringify(emailSettings));
-    fd.append("priceTypes", JSON.stringify(priceRows));
+    // Convert string prices to cents for the server
+    const serializedPrices = priceRows.map((row) => ({
+      name: row.name,
+      price_cents: dollarsToCents(row.price),
+      day_prices: Object.keys(row.day_prices).some((k) => row.day_prices[k])
+        ? Object.fromEntries(
+            Object.entries(row.day_prices).map(([k, v]) => [k, dollarsToCents(v)]),
+          )
+        : null,
+      target_price_cents: dollarsToCents(row.target_price),
+      tax_rate: percentToRate(row.tax_rate),
+    }));
+    fd.append("priceTypes", JSON.stringify(serializedPrices));
     if (newBlockedDates.length > 0) {
       fd.append("newBlockedDates", JSON.stringify(newBlockedDates));
     }
 
     formAction(fd);
-  }
-
-  // Helper for cents input
-  function centsToDisplay(cents: number | null): string {
-    if (cents === null || cents === undefined) return "";
-    return (cents / 100).toFixed(2);
-  }
-
-  function displayToCents(val: string): number | null {
-    if (!val) return null;
-    const num = parseFloat(val);
-    return isNaN(num) ? null : Math.round(num * 100);
   }
 
   // Existing blocked dates for the selected location
@@ -728,132 +762,124 @@ export function TicketEditor({
         {/* Price Types */}
         <div className="space-y-3">
           <Label>Price Tiers</Label>
+
+          {/* Column headers */}
+          {pricingMode === "flat" && (
+            <div className="flex items-end gap-2 text-xs text-muted-foreground">
+              <span className="w-40 shrink-0">Name</span>
+              <span className="w-28 shrink-0">Price ($)</span>
+              <span className="w-20 shrink-0">Tax %</span>
+              <span className="w-24 shrink-0">CC Fee</span>
+              <span className="w-24 shrink-0">Svc Fee</span>
+              <span className="w-7 shrink-0" />
+            </div>
+          )}
+          {pricingMode === "full_dynamic" && (
+            <div className="flex items-end gap-2 text-xs text-muted-foreground">
+              <span className="w-40 shrink-0">Name</span>
+              <span className="w-28 shrink-0">Target ($)</span>
+              <span className="w-20 shrink-0">Tax %</span>
+              <span className="w-7 shrink-0" />
+            </div>
+          )}
+          {pricingMode === "semi_dynamic" && (
+            <div className="flex items-end gap-2 text-xs text-muted-foreground">
+              <span className="w-32 shrink-0">Name</span>
+              {DAY_LABELS.map(({ key, label }) => (
+                <span key={key} className="w-16 shrink-0 text-center">{label}</span>
+              ))}
+              <span className="w-16 shrink-0">Tax %</span>
+              <span className="w-7 shrink-0" />
+            </div>
+          )}
+
           {priceRows.map((row, idx) => (
-            <Card key={idx}>
-              <CardContent className="p-3 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Tier {idx + 1}</span>
-                  {priceRows.length > 1 && (
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() => removePriceRow(idx)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Name *</Label>
-                    <Input
-                      value={row.name}
-                      onChange={(e) => updatePriceRow(idx, { name: e.target.value })}
-                      placeholder="e.g. Adult, Child, Senior"
-                    />
-                  </div>
-
-                  {pricingMode === "flat" && (
-                    <div className="space-y-1">
-                      <Label className="text-xs">Price ($)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={centsToDisplay(row.price_cents)}
-                        onChange={(e) =>
-                          updatePriceRow(idx, { price_cents: displayToCents(e.target.value) })
-                        }
-                        placeholder="0.00"
-                      />
-                    </div>
-                  )}
-
-                  {pricingMode === "full_dynamic" && (
-                    <div className="space-y-1">
-                      <Label className="text-xs">Target Price ($)</Label>
-                      <Input
-                        type="number"
-                        step="0.01"
-                        min="0"
-                        value={centsToDisplay(row.target_price_cents)}
-                        onChange={(e) =>
-                          updatePriceRow(idx, {
-                            target_price_cents: displayToCents(e.target.value),
-                          })
-                        }
-                        placeholder="0.00"
-                      />
-                    </div>
-                  )}
-                </div>
-
-                {pricingMode === "semi_dynamic" && (
-                  <div className="space-y-1">
-                    <Label className="text-xs">Price by Day ($)</Label>
-                    <div className="grid grid-cols-7 gap-2">
-                      {DAY_LABELS.map(({ key, label }) => (
-                        <div key={key} className="space-y-1">
-                          <span className="text-xs text-muted-foreground block text-center">
-                            {label}
-                          </span>
-                          <Input
-                            type="number"
-                            step="0.01"
-                            min="0"
-                            className="text-center text-xs px-1"
-                            value={centsToDisplay(row.day_prices?.[key] ?? null)}
-                            onChange={(e) => {
-                              const dp = { ...(row.day_prices ?? EMPTY_DAY_PRICES) };
-                              dp[key] = displayToCents(e.target.value);
-                              updatePriceRow(idx, { day_prices: dp });
-                            }}
-                            placeholder="0"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+            <div key={idx} className="flex items-center gap-2">
+              {/* Name — always shown */}
+              <Input
+                className={cn(
+                  "shrink-0",
+                  pricingMode === "semi_dynamic" ? "w-32" : "w-40",
                 )}
+                value={row.name}
+                onChange={(e) => updatePriceRow(idx, { name: e.target.value })}
+                placeholder="e.g. Adult"
+              />
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Tax Rate (%)</Label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      value={row.tax_rate ? (row.tax_rate * 100).toFixed(2) : "0"}
-                      onChange={(e) => {
-                        const pct = parseFloat(e.target.value);
-                        updatePriceRow(idx, { tax_rate: isNaN(pct) ? 0 : pct / 100 });
-                      }}
-                      placeholder="0.00"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">CC Fee (3%)</Label>
-                    <p className="text-sm text-muted-foreground h-10 flex items-center">
-                      {pricingMode === "flat" && row.price_cents
-                        ? `$${((row.price_cents * 0.03) / 100).toFixed(2)}`
-                        : "N/A"}
-                    </p>
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs text-muted-foreground">Service Fee (3%)</Label>
-                    <p className="text-sm text-muted-foreground h-10 flex items-center">
-                      {pricingMode === "flat" && row.price_cents
-                        ? `$${((row.price_cents * 0.03) / 100).toFixed(2)}`
-                        : "N/A"}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+              {/* Flat: price */}
+              {pricingMode === "flat" && (
+                <Input
+                  className="w-28 shrink-0"
+                  value={row.price}
+                  onChange={(e) => updatePriceRow(idx, { price: e.target.value })}
+                  placeholder="0.00"
+                />
+              )}
+
+              {/* Full dynamic: target price */}
+              {pricingMode === "full_dynamic" && (
+                <Input
+                  className="w-28 shrink-0"
+                  value={row.target_price}
+                  onChange={(e) => updatePriceRow(idx, { target_price: e.target.value })}
+                  placeholder="0.00"
+                />
+              )}
+
+              {/* Semi dynamic: 7 day inputs */}
+              {pricingMode === "semi_dynamic" &&
+                DAY_LABELS.map(({ key }) => (
+                  <Input
+                    key={key}
+                    className="w-16 shrink-0 text-center text-xs px-1"
+                    value={row.day_prices[key] ?? ""}
+                    onChange={(e) => {
+                      const dp = { ...row.day_prices };
+                      dp[key] = e.target.value;
+                      updatePriceRow(idx, { day_prices: dp });
+                    }}
+                    placeholder="0"
+                  />
+                ))}
+
+              {/* Tax */}
+              <Input
+                className={cn(
+                  "shrink-0",
+                  pricingMode === "semi_dynamic" ? "w-16" : "w-20",
+                )}
+                value={row.tax_rate}
+                onChange={(e) => updatePriceRow(idx, { tax_rate: e.target.value })}
+                placeholder="0"
+              />
+
+              {/* Flat: calculated fees */}
+              {pricingMode === "flat" && (() => {
+                const price = parseFloat(row.price);
+                const fee = !isNaN(price) && price > 0 ? (price * 0.03).toFixed(2) : "—";
+                return (
+                  <>
+                    <span className="w-24 shrink-0 text-xs text-muted-foreground">${fee}</span>
+                    <span className="w-24 shrink-0 text-xs text-muted-foreground">${fee}</span>
+                  </>
+                );
+              })()}
+
+              {/* Delete */}
+              {priceRows.length > 1 ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7 shrink-0"
+                  onClick={() => removePriceRow(idx)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              ) : (
+                <span className="w-7 shrink-0" />
+              )}
+            </div>
           ))}
 
           <Button type="button" variant="outline" size="sm" onClick={addPriceRow}>
