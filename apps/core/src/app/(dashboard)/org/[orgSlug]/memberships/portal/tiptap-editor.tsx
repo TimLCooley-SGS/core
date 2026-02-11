@@ -3,6 +3,7 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
+import Placeholder from "@tiptap/extension-placeholder";
 import { Button } from "@sgscore/ui";
 import {
   Bold,
@@ -32,6 +33,9 @@ export function TiptapEditor({ content, onChange, placeholder }: TiptapEditorPro
         openOnClick: false,
         HTMLAttributes: { class: "text-primary underline" },
       }),
+      ...(placeholder
+        ? [Placeholder.configure({ placeholder })]
+        : []),
     ],
     content,
     editorProps: {
@@ -129,11 +133,6 @@ export function TiptapEditor({ content, onChange, placeholder }: TiptapEditorPro
           <Redo className="h-4 w-4" />
         </ToolbarButton>
       </div>
-      {placeholder && !content && (
-        <div className="pointer-events-none absolute px-3 pt-3 text-sm text-muted-foreground">
-          {placeholder}
-        </div>
-      )}
       <EditorContent editor={editor} />
     </div>
   );
