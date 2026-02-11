@@ -93,7 +93,7 @@ export function DesignEditor({ orgSlug, design }: DesignEditorProps) {
     design?.font_color ?? "#000000",
   );
   const [bodyText, setBodyText] = useState(
-    design?.body_text ?? "<h2>Your Tickets</h2><p>Thank you for your purchase!</p>",
+    design?.body_text ?? "<h1>Your Tickets</h1><p>Your membership card and ID are required for member admissions.</p><p>Need assistance, please call us.</p>",
   );
   const [termsText, setTermsText] = useState(
     design?.terms_text ?? "<p><strong>TERMS AND CONDITIONS</strong> NO REFUNDS. RESALE IS PROHIBITED.</p>",

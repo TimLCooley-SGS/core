@@ -778,7 +778,7 @@ CREATE TABLE ticket_designs (
   options jsonb NOT NULL DEFAULT '{"mobile_pdf":true,"print_tickets":true,"download_tickets":true,"display_tickets_first":false,"qr_code":false}',
   background_color text NOT NULL DEFAULT '#FFF8E1',
   font_color text NOT NULL DEFAULT '#000000',
-  body_text text NOT NULL DEFAULT '<h2>Your Tickets</h2><p>Thank you for your purchase!</p>',
+  body_text text NOT NULL DEFAULT '<h1>Your Tickets</h1><p>Your membership card and ID are required for member admissions.</p><p>Need assistance, please call us.</p>',
   terms_text text NOT NULL DEFAULT '<p><strong>TERMS AND CONDITIONS</strong> NO REFUNDS. RESALE IS PROHIBITED.</p>',
   is_default boolean NOT NULL DEFAULT false,
   created_by uuid REFERENCES persons(id),
