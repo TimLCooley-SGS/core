@@ -49,4 +49,6 @@ export {
   ensureOrgAssetsBucket,
   uploadOrgLogo,
   deleteOrgLogo,
+  uploadCardImage,
+  deleteCardImage,
 } from "./storage";

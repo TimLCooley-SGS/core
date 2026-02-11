@@ -227,3 +227,46 @@ export interface BlockedDate {
   created_at: string;
   updated_at: string;
 }
+
+// Membership Card Designs
+
+export type MembershipCardField =
+  | 'program_name'
+  | 'member_name'
+  | 'membership_id'
+  | 'status'
+  | 'expiration_date'
+  | 'start_date'
+  | 'amount'
+  | 'seat_count'
+  | 'barcode'
+  | 'member_since';
+
+export interface MembershipCardOptions {
+  print: boolean;
+  download_pdf: boolean;
+  apple_wallet: boolean;
+  google_wallet: boolean;
+  push_notifications: boolean;
+}
+
+export interface MembershipCardDesign {
+  id: string;
+  name: string;
+  pdf_name: string | null;
+  status: MembershipPlanStatus;
+  front_fields: MembershipCardField[];
+  back_fields: MembershipCardField[];
+  font_color: string;
+  accent_color: string;
+  background_color: string;
+  front_image_url: string | null;
+  default_side: 'front' | 'back';
+  is_default: boolean;
+  card_options: MembershipCardOptions;
+  restricted_plan_ids: string[] | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}

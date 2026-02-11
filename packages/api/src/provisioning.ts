@@ -519,6 +519,92 @@ FROM persons p
 JOIN visits v ON v.person_id = p.id;
 `,
   },
+  {
+    name: "010_create_locations.sql",
+    sql: `
+CREATE TABLE locations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  capacity int CHECK (capacity > 0),
+  description text,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TRIGGER trg_locations_updated_at
+  BEFORE UPDATE ON locations
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE TABLE blocked_dates (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  location_id uuid REFERENCES locations(id) ON DELETE CASCADE,
+  start_date date NOT NULL,
+  end_date date NOT NULL,
+  reason text NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now(),
+  CHECK (end_date >= start_date)
+);
+
+CREATE TRIGGER trg_blocked_dates_updated_at
+  BEFORE UPDATE ON blocked_dates
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE INDEX idx_blocked_dates_location ON blocked_dates (location_id);
+CREATE INDEX idx_blocked_dates_range ON blocked_dates (start_date, end_date);
+CREATE INDEX idx_blocked_dates_org_wide ON blocked_dates (start_date, end_date) WHERE location_id IS NULL;
+`,
+  },
+  {
+    name: "011_create_membership_card_designs.sql",
+    sql: `
+CREATE TABLE membership_card_designs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  pdf_name text,
+  status membership_plan_status NOT NULL DEFAULT 'active',
+  front_fields text[] NOT NULL DEFAULT '{"program_name","member_name","expiration_date","status"}',
+  back_fields text[] NOT NULL DEFAULT '{"membership_id","barcode","member_since","amount"}',
+  font_color text NOT NULL DEFAULT '#000000',
+  accent_color text NOT NULL DEFAULT '#4E2C70',
+  background_color text NOT NULL DEFAULT '#FFFFFF',
+  front_image_url text,
+  default_side text NOT NULL DEFAULT 'front' CHECK (default_side IN ('front', 'back')),
+  is_default boolean NOT NULL DEFAULT false,
+  card_options jsonb NOT NULL DEFAULT '{"print":true,"download_pdf":true,"apple_wallet":false,"google_wallet":false,"push_notifications":false}',
+  restricted_plan_ids uuid[] DEFAULT NULL,
+  created_by uuid REFERENCES persons(id),
+  updated_by uuid REFERENCES persons(id),
+  created_at timestamptz NOT NULL DEFAULT now(),
+  updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_card_designs_status ON membership_card_designs (status);
+CREATE INDEX idx_card_designs_default ON membership_card_designs (is_default) WHERE is_default = true;
+
+CREATE TRIGGER trg_card_designs_updated_at
+  BEFORE UPDATE ON membership_card_designs
+  FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+
+CREATE OR REPLACE FUNCTION enforce_single_default_card()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.is_default = true THEN
+    UPDATE membership_card_designs
+    SET is_default = false
+    WHERE id != NEW.id AND is_default = true;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_enforce_single_default_card
+  AFTER INSERT OR UPDATE OF is_default ON membership_card_designs
+  FOR EACH ROW
+  WHEN (NEW.is_default = true)
+  EXECUTE FUNCTION enforce_single_default_card();
+`,
+  },
 ];
 
 const SEEDS: { name: string; sql: string }[] = [
