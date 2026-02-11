@@ -1205,9 +1205,10 @@ export async function provisionOrg(orgId: string): Promise<void> {
            supabase_url = $2,
            supabase_anon_key = $3,
            supabase_service_key = $4,
+           database_url = $5,
            status = 'active'
-         WHERE id = $5`,
-        [projectRef, supabaseUrl, keys.anon, keys.service_role, orgId],
+         WHERE id = $6`,
+        [projectRef, supabaseUrl, keys.anon, keys.service_role, tenantDbUrl, orgId],
       );
 
       await cpClient.query(

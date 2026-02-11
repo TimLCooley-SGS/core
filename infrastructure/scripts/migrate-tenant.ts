@@ -139,18 +139,20 @@ async function main() {
     await cpClient.connect();
     try {
       const { rows } = await cpClient.query(
-        "SELECT supabase_url FROM organizations WHERE slug = $1",
+        "SELECT database_url FROM organizations WHERE slug = $1",
         [slug],
       );
       if (rows.length === 0) {
         console.error(`Organization '${slug}' not found`);
         process.exit(1);
       }
-      // Derive database URL from Supabase URL
-      const supabaseUrl = rows[0].supabase_url as string;
-      const host = new URL(supabaseUrl).hostname; // e.g., xyzabc.supabase.co
-      const projectRef = host.split(".")[0];
-      databaseUrl = `postgresql://postgres:${process.env.SUPABASE_DB_PASSWORD}@db.${projectRef}.supabase.co:5432/postgres`;
+      if (!rows[0].database_url) {
+        console.error(
+          `Organization '${slug}' has no database_url — run backfill first`,
+        );
+        process.exit(1);
+      }
+      databaseUrl = rows[0].database_url as string;
     } finally {
       await cpClient.end();
     }

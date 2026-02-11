@@ -20,6 +20,8 @@ import {
   createSupabaseProject,
   waitForProject,
   getApiKeys,
+  getPoolerHost,
+  buildTenantDbUrl,
   runTenantMigrations,
 } from "@sgscore/api/provisioning";
 
@@ -77,7 +79,8 @@ async function provisionNewOrg(options: {
       const keys = await getApiKeys(projectRef);
       const supabaseUrl = `https://${projectRef}.supabase.co`;
 
-      const tenantDbUrl = `postgresql://postgres:${dbPassword}@db.${projectRef}.supabase.co:5432/postgres`;
+      const pooler = await getPoolerHost(projectRef);
+      const tenantDbUrl = buildTenantDbUrl(projectRef, dbPassword, pooler.host, pooler.port);
       console.log("Running tenant migrations...");
       await runTenantMigrations(tenantDbUrl, { seed: true });
 
@@ -87,9 +90,10 @@ async function provisionNewOrg(options: {
            supabase_url = $2,
            supabase_anon_key = $3,
            supabase_service_key = $4,
+           database_url = $5,
            status = 'active'
-         WHERE id = $5`,
-        [projectRef, supabaseUrl, keys.anon, keys.service_role, orgId],
+         WHERE id = $6`,
+        [projectRef, supabaseUrl, keys.anon, keys.service_role, tenantDbUrl, orgId],
       );
 
       await cpClient.query(
