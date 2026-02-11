@@ -65,6 +65,20 @@ export async function upsertPortalSettings(
 
     if (error) return { error: `Failed to save: ${error.message}` };
 
+    // Upload hero image if provided with update
+    const heroFile = formData.get("heroFile") as File | null;
+    if (heroFile && heroFile.size > 0) {
+      try {
+        const publicUrl = await uploadPortalImage(org.id, heroFile);
+        await tenant
+          .from("portal_settings")
+          .update({ hero_image_url: publicUrl, updated_by: auth.tenantPersonId })
+          .eq("id", settingsId);
+      } catch {
+        // non-fatal
+      }
+    }
+
     await tenant.from("audit_log").insert({
       actor_person_id: auth.tenantPersonId,
       actor_type: auth.tenantPersonId ? "staff" : ("sgs_support" as const),
@@ -82,6 +96,20 @@ export async function upsertPortalSettings(
       .single();
 
     if (error) return { error: `Failed to save: ${error.message}` };
+
+    // Upload hero image if provided with create
+    const heroFile = formData.get("heroFile") as File | null;
+    if (heroFile && heroFile.size > 0) {
+      try {
+        const publicUrl = await uploadPortalImage(org.id, heroFile);
+        await tenant
+          .from("portal_settings")
+          .update({ hero_image_url: publicUrl, updated_by: auth.tenantPersonId })
+          .eq("id", newRow.id);
+      } catch {
+        // non-fatal
+      }
+    }
 
     await tenant.from("audit_log").insert({
       actor_person_id: auth.tenantPersonId,

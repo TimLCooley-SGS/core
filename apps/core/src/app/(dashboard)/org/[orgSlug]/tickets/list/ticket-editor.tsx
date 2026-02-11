@@ -73,7 +73,7 @@ function AccordionStep({
           className={cn(
             "flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold",
             isComplete
-              ? "bg-green-600 text-white"
+              ? "bg-primary text-primary-foreground"
               : isOpen
                 ? "bg-white text-primary"
                 : "bg-primary text-primary-foreground",
@@ -153,6 +153,12 @@ function percentToRate(val: string): number {
   return isNaN(num) ? 0 : num / 100;
 }
 
+function computeFees(basePrice: number) {
+  const ccFee = basePrice * 0.03;
+  const svcFee = basePrice * 0.03;
+  return { ccFee, svcFee, total: basePrice + ccFee + svcFee };
+}
+
 // ---------------------------------------------------------------------------
 // Props
 // ---------------------------------------------------------------------------
@@ -210,6 +216,19 @@ export function TicketEditor({
 
   // Active step
   const [openStep, setOpenStep] = useState(1);
+  const [touchedSteps, setTouchedSteps] = useState<Set<number>>(
+    () => new Set(isEdit ? [1, 2, 3, 4, 5] : [1]),
+  );
+
+  function openStepAndTouch(step: number) {
+    setTouchedSteps((prev) => {
+      if (prev.has(step)) return prev;
+      const next = new Set(prev);
+      next.add(step);
+      return next;
+    });
+    setOpenStep(step);
+  }
 
   // ─── Step 1: Ticket Type ─────────────────────────────────────────────
   const [ticketMode, setTicketMode] = useState<TicketMode>(
@@ -226,6 +245,12 @@ export function TicketEditor({
   const [squareImageUrl, setSquareImageUrl] = useState<string | null>(
     ticket?.square_image_url ?? null,
   );
+
+  // Pending image files for new tickets (before save)
+  const [pendingBannerFile, setPendingBannerFile] = useState<File | null>(null);
+  const [pendingBannerPreview, setPendingBannerPreview] = useState<string | null>(null);
+  const [pendingSquareFile, setPendingSquareFile] = useState<File | null>(null);
+  const [pendingSquarePreview, setPendingSquarePreview] = useState<string | null>(null);
 
   // ─── Step 2: Pricing ─────────────────────────────────────────────────
   const [pricingMode, setPricingMode] = useState<PricingMode>(
@@ -333,6 +358,17 @@ export function TicketEditor({
     if (squareRemoveState.success) setSquareImageUrl(null);
   }, [squareRemoveState.success]);
 
+  // Auto-open step 5 and scroll to error on failure
+  useEffect(() => {
+    if (state.error) {
+      openStepAndTouch(5);
+      setTimeout(() => {
+        document.getElementById("ticket-save-error")?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 100);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.error]);
+
   // Set custom interval flag if value doesn't match preset
   useEffect(() => {
     if (ticket?.timed_interval_minutes && !INTERVAL_PRESETS.includes(ticket.timed_interval_minutes)) {
@@ -340,16 +376,27 @@ export function TicketEditor({
     }
   }, [ticket?.timed_interval_minutes]);
 
+  // Cleanup object URLs on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingBannerPreview) URL.revokeObjectURL(pendingBannerPreview);
+      if (pendingSquarePreview) URL.revokeObjectURL(pendingSquarePreview);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ─── Step Completion ─────────────────────────────────────────────────
-  const step1Complete = !!name.trim() && !!ticketMode;
-  const step2Complete = priceRows.length > 0 && priceRows.every((r) => r.name.trim());
-  const step3Complete = parseInt(guestAllowance, 10) > 0;
-  const step4Complete = true; // delivery is all optional / placeholder
+  const step1Complete = touchedSteps.has(1) && !!name.trim() && !!ticketMode && openStep !== 1;
+  const step2Complete = touchedSteps.has(2) && priceRows.length > 0 && priceRows.every((r) => r.name.trim()) && openStep !== 2;
+  const step3Complete = touchedSteps.has(3) && parseInt(guestAllowance, 10) > 0 && openStep !== 3;
+  const step4Complete = touchedSteps.has(4) && (
+    Object.values(sellingChannels).some(Boolean) || Object.values(deliveryFormats).some(Boolean)
+  ) && openStep !== 4;
 
   // ─── Image Handlers ──────────────────────────────────────────────────
   function handleBannerFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !ticket) return;
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
       setBannerCropperSrc(reader.result as string);
@@ -360,27 +407,37 @@ export function TicketEditor({
   }
 
   function handleBannerCropComplete(croppedFile: File) {
-    if (!ticket) return;
     setBannerCropperOpen(false);
     setBannerCropperSrc(null);
-    const fd = new FormData();
-    fd.append("orgSlug", orgSlug);
-    fd.append("ticketId", ticket.id);
-    fd.append("file", croppedFile);
-    startBannerUpload(() => bannerUploadAction(fd));
+    if (isEdit && ticket) {
+      const fd = new FormData();
+      fd.append("orgSlug", orgSlug);
+      fd.append("ticketId", ticket.id);
+      fd.append("file", croppedFile);
+      startBannerUpload(() => bannerUploadAction(fd));
+    } else {
+      setPendingBannerFile(croppedFile);
+      if (pendingBannerPreview) URL.revokeObjectURL(pendingBannerPreview);
+      setPendingBannerPreview(URL.createObjectURL(croppedFile));
+    }
   }
 
   function handleRemoveBanner() {
-    if (!ticket) return;
-    const fd = new FormData();
-    fd.append("orgSlug", orgSlug);
-    fd.append("ticketId", ticket.id);
-    startBannerRemove(() => bannerRemoveAction(fd));
+    if (isEdit && ticket) {
+      const fd = new FormData();
+      fd.append("orgSlug", orgSlug);
+      fd.append("ticketId", ticket.id);
+      startBannerRemove(() => bannerRemoveAction(fd));
+    } else {
+      setPendingBannerFile(null);
+      if (pendingBannerPreview) URL.revokeObjectURL(pendingBannerPreview);
+      setPendingBannerPreview(null);
+    }
   }
 
   function handleSquareFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !ticket) return;
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = () => {
       setSquareCropperSrc(reader.result as string);
@@ -391,22 +448,32 @@ export function TicketEditor({
   }
 
   function handleSquareCropComplete(croppedFile: File) {
-    if (!ticket) return;
     setSquareCropperOpen(false);
     setSquareCropperSrc(null);
-    const fd = new FormData();
-    fd.append("orgSlug", orgSlug);
-    fd.append("ticketId", ticket.id);
-    fd.append("file", croppedFile);
-    startSquareUpload(() => squareUploadAction(fd));
+    if (isEdit && ticket) {
+      const fd = new FormData();
+      fd.append("orgSlug", orgSlug);
+      fd.append("ticketId", ticket.id);
+      fd.append("file", croppedFile);
+      startSquareUpload(() => squareUploadAction(fd));
+    } else {
+      setPendingSquareFile(croppedFile);
+      if (pendingSquarePreview) URL.revokeObjectURL(pendingSquarePreview);
+      setPendingSquarePreview(URL.createObjectURL(croppedFile));
+    }
   }
 
   function handleRemoveSquare() {
-    if (!ticket) return;
-    const fd = new FormData();
-    fd.append("orgSlug", orgSlug);
-    fd.append("ticketId", ticket.id);
-    startSquareRemove(() => squareRemoveAction(fd));
+    if (isEdit && ticket) {
+      const fd = new FormData();
+      fd.append("orgSlug", orgSlug);
+      fd.append("ticketId", ticket.id);
+      startSquareRemove(() => squareRemoveAction(fd));
+    } else {
+      setPendingSquareFile(null);
+      if (pendingSquarePreview) URL.revokeObjectURL(pendingSquarePreview);
+      setPendingSquarePreview(null);
+    }
   }
 
   // ─── Price Row Helpers ───────────────────────────────────────────────
@@ -475,6 +542,8 @@ export function TicketEditor({
     if (newBlockedDates.length > 0) {
       fd.append("newBlockedDates", JSON.stringify(newBlockedDates));
     }
+    if (pendingBannerFile) fd.append("bannerFile", pendingBannerFile);
+    if (pendingSquareFile) fd.append("squareFile", pendingSquareFile);
 
     formAction(fd);
   }
@@ -491,8 +560,8 @@ export function TicketEditor({
         step={1}
         title="Ticket Type"
         isOpen={openStep === 1}
-        isComplete={step1Complete && openStep !== 1}
-        onToggle={() => setOpenStep(openStep === 1 ? 0 : 1)}
+        isComplete={step1Complete}
+        onToggle={() => openStepAndTouch(openStep === 1 ? 0 : 1)}
       >
         {/* Mode Selection */}
         <div className="space-y-2">
@@ -511,12 +580,12 @@ export function TicketEditor({
                 className={cn(
                   "rounded-lg border-2 p-4 text-left transition-colors",
                   ticketMode === opt.value
-                    ? "border-primary bg-primary/5"
+                    ? "border-primary bg-primary text-primary-foreground"
                     : "border-muted hover:border-muted-foreground/30",
                 )}
               >
                 <p className="text-sm font-medium">{opt.label}</p>
-                <p className="text-xs text-muted-foreground mt-1">{opt.desc}</p>
+                <p className={cn("text-xs mt-1", ticketMode === opt.value ? "text-primary-foreground/80" : "text-muted-foreground")}>{opt.desc}</p>
               </button>
             ))}
           </div>
@@ -580,10 +649,10 @@ export function TicketEditor({
             <CardTitle className="text-base">Banner Image (16:9)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {bannerImageUrl && (
+            {(bannerImageUrl || pendingBannerPreview) && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={bannerImageUrl}
+                src={bannerImageUrl ?? pendingBannerPreview!}
                 alt="Ticket banner"
                 className="max-w-[300px] rounded-md border"
               />
@@ -597,41 +666,35 @@ export function TicketEditor({
             {bannerRemoveState.error && (
               <p className="text-sm text-destructive">{bannerRemoveState.error}</p>
             )}
-            {isEdit ? (
-              <div className="flex gap-3">
-                <input
-                  ref={bannerInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                  className="hidden"
-                  onChange={handleBannerFileChange}
-                />
+            <div className="flex gap-3">
+              <input
+                ref={bannerInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={handleBannerFileChange}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUploadingBanner}
+                onClick={() => bannerInputRef.current?.click()}
+              >
+                {isUploadingBanner ? "Uploading..." : "Upload Banner"}
+              </Button>
+              {(bannerImageUrl || pendingBannerPreview) && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={isUploadingBanner}
-                  onClick={() => bannerInputRef.current?.click()}
+                  disabled={isRemovingBanner}
+                  onClick={handleRemoveBanner}
                 >
-                  {isUploadingBanner ? "Uploading..." : "Upload Banner"}
+                  {isRemovingBanner ? "Removing..." : "Remove"}
                 </Button>
-                {bannerImageUrl && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isRemovingBanner}
-                    onClick={handleRemoveBanner}
-                  >
-                    {isRemovingBanner ? "Removing..." : "Remove"}
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">
-                Save the ticket first, then upload images.
-              </p>
-            )}
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -641,10 +704,10 @@ export function TicketEditor({
             <CardTitle className="text-base">Square Image (1:1)</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {squareImageUrl && (
+            {(squareImageUrl || pendingSquarePreview) && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={squareImageUrl}
+                src={squareImageUrl ?? pendingSquarePreview!}
                 alt="Ticket square"
                 className="max-w-[150px] rounded-md border"
               />
@@ -658,41 +721,35 @@ export function TicketEditor({
             {squareRemoveState.error && (
               <p className="text-sm text-destructive">{squareRemoveState.error}</p>
             )}
-            {isEdit ? (
-              <div className="flex gap-3">
-                <input
-                  ref={squareInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                  className="hidden"
-                  onChange={handleSquareFileChange}
-                />
+            <div className="flex gap-3">
+              <input
+                ref={squareInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={handleSquareFileChange}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUploadingSquare}
+                onClick={() => squareInputRef.current?.click()}
+              >
+                {isUploadingSquare ? "Uploading..." : "Upload Square"}
+              </Button>
+              {(squareImageUrl || pendingSquarePreview) && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={isUploadingSquare}
-                  onClick={() => squareInputRef.current?.click()}
+                  disabled={isRemovingSquare}
+                  onClick={handleRemoveSquare}
                 >
-                  {isUploadingSquare ? "Uploading..." : "Upload Square"}
+                  {isRemovingSquare ? "Removing..." : "Remove"}
                 </Button>
-                {squareImageUrl && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isRemovingSquare}
-                    onClick={handleRemoveSquare}
-                  >
-                    {isRemovingSquare ? "Removing..." : "Remove"}
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">
-                Save the ticket first, then upload images.
-              </p>
-            )}
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -709,8 +766,8 @@ export function TicketEditor({
         <Button
           type="button"
           size="sm"
-          onClick={() => setOpenStep(2)}
-          disabled={!step1Complete}
+          onClick={() => openStepAndTouch(2)}
+          disabled={!name.trim() || !ticketMode}
         >
           Continue to Pricing
         </Button>
@@ -721,8 +778,8 @@ export function TicketEditor({
         step={2}
         title="Pricing"
         isOpen={openStep === 2}
-        isComplete={step2Complete && openStep !== 2}
-        onToggle={() => setOpenStep(openStep === 2 ? 0 : 2)}
+        isComplete={step2Complete}
+        onToggle={() => openStepAndTouch(openStep === 2 ? 0 : 2)}
       >
         {/* Read-only fee display */}
         <div className="flex gap-6 text-sm text-muted-foreground">
@@ -748,12 +805,12 @@ export function TicketEditor({
                 className={cn(
                   "rounded-lg border-2 p-3 text-left transition-colors",
                   pricingMode === opt.value
-                    ? "border-primary bg-primary/5"
+                    ? "border-primary bg-primary text-primary-foreground"
                     : "border-muted hover:border-muted-foreground/30",
                 )}
               >
                 <p className="text-sm font-medium">{opt.label}</p>
-                <p className="text-xs text-muted-foreground mt-1">{opt.desc}</p>
+                <p className={cn("text-xs mt-1", pricingMode === opt.value ? "text-primary-foreground/80" : "text-muted-foreground")}>{opt.desc}</p>
               </button>
             ))}
           </div>
@@ -769,8 +826,9 @@ export function TicketEditor({
               <span className="w-40 shrink-0">Name</span>
               <span className="w-28 shrink-0">Price ($)</span>
               <span className="w-20 shrink-0">Tax %</span>
-              <span className="w-24 shrink-0">CC Fee</span>
-              <span className="w-24 shrink-0">Svc Fee</span>
+              <span className="w-20 shrink-0">CC Fee</span>
+              <span className="w-20 shrink-0">Svc Fee</span>
+              <span className="w-20 shrink-0">Total</span>
               <span className="w-7 shrink-0" />
             </div>
           )}
@@ -779,6 +837,9 @@ export function TicketEditor({
               <span className="w-40 shrink-0">Name</span>
               <span className="w-28 shrink-0">Target ($)</span>
               <span className="w-20 shrink-0">Tax %</span>
+              <span className="w-20 shrink-0">CC Fee</span>
+              <span className="w-20 shrink-0">Svc Fee</span>
+              <span className="w-20 shrink-0">Total</span>
               <span className="w-7 shrink-0" />
             </div>
           )}
@@ -856,11 +917,27 @@ export function TicketEditor({
               {/* Flat: calculated fees */}
               {pricingMode === "flat" && (() => {
                 const price = parseFloat(row.price);
-                const fee = !isNaN(price) && price > 0 ? (price * 0.03).toFixed(2) : "—";
+                const valid = !isNaN(price) && price > 0;
+                const fees = valid ? computeFees(price) : null;
                 return (
                   <>
-                    <span className="w-24 shrink-0 text-xs text-muted-foreground">${fee}</span>
-                    <span className="w-24 shrink-0 text-xs text-muted-foreground">${fee}</span>
+                    <span className="w-20 shrink-0 text-xs text-muted-foreground">{fees ? `$${fees.ccFee.toFixed(2)}` : "—"}</span>
+                    <span className="w-20 shrink-0 text-xs text-muted-foreground">{fees ? `$${fees.svcFee.toFixed(2)}` : "—"}</span>
+                    <span className="w-20 shrink-0 text-xs font-medium">{fees ? `$${fees.total.toFixed(2)}` : "—"}</span>
+                  </>
+                );
+              })()}
+
+              {/* Full dynamic: calculated fees */}
+              {pricingMode === "full_dynamic" && (() => {
+                const price = parseFloat(row.target_price);
+                const valid = !isNaN(price) && price > 0;
+                const fees = valid ? computeFees(price) : null;
+                return (
+                  <>
+                    <span className="w-20 shrink-0 text-xs text-muted-foreground">{fees ? `$${fees.ccFee.toFixed(2)}` : "—"}</span>
+                    <span className="w-20 shrink-0 text-xs text-muted-foreground">{fees ? `$${fees.svcFee.toFixed(2)}` : "—"}</span>
+                    <span className="w-20 shrink-0 text-xs font-medium">{fees ? `$${fees.total.toFixed(2)}` : "—"}</span>
                   </>
                 );
               })()}
@@ -888,11 +965,59 @@ export function TicketEditor({
           </Button>
         </div>
 
+        {/* Semi-dynamic fee summary */}
+        {pricingMode === "semi_dynamic" && priceRows.some((r) =>
+          DAY_LABELS.some(({ key }) => {
+            const v = parseFloat(r.day_prices[key] ?? "");
+            return !isNaN(v) && v > 0;
+          }),
+        ) && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Fee Summary</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="text-muted-foreground border-b">
+                      <th className="text-left py-1 pr-2">Tier</th>
+                      {DAY_LABELS.map(({ key, label }) => (
+                        <th key={key} className="text-center py-1 px-1">{label}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {priceRows.map((row, idx) => (
+                      <tr key={idx} className="border-b last:border-0">
+                        <td className="py-1 pr-2 font-medium">{row.name || `Tier ${idx + 1}`}</td>
+                        {DAY_LABELS.map(({ key }) => {
+                          const price = parseFloat(row.day_prices[key] ?? "");
+                          const valid = !isNaN(price) && price > 0;
+                          const fees = valid ? computeFees(price) : null;
+                          return (
+                            <td key={key} className="text-center py-1 px-1">
+                              {fees ? `$${fees.total.toFixed(2)}` : "—"}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              <p className="text-xs text-muted-foreground mt-2">
+                Totals include base price + 3% CC fee + 3% service fee.
+              </p>
+            </CardContent>
+          </Card>
+        )}
+
         <Button
           type="button"
           size="sm"
-          onClick={() => setOpenStep(3)}
-          disabled={!step2Complete}
+          onClick={() => openStepAndTouch(3)}
+          disabled={!(priceRows.length > 0 && priceRows.every((r) => r.name.trim()))}
         >
           Continue to Date & Time
         </Button>
@@ -903,8 +1028,8 @@ export function TicketEditor({
         step={3}
         title="Date & Time"
         isOpen={openStep === 3}
-        isComplete={step3Complete && openStep !== 3}
-        onToggle={() => setOpenStep(openStep === 3 ? 0 : 3)}
+        isComplete={step3Complete}
+        onToggle={() => openStepAndTouch(openStep === 3 ? 0 : 3)}
       >
         {/* Guest Allowance */}
         <div className="space-y-2">
@@ -1079,7 +1204,7 @@ export function TicketEditor({
           </CardContent>
         </Card>
 
-        <Button type="button" size="sm" onClick={() => setOpenStep(4)}>
+        <Button type="button" size="sm" onClick={() => openStepAndTouch(4)}>
           Continue to Delivery
         </Button>
       </AccordionStep>
@@ -1089,8 +1214,8 @@ export function TicketEditor({
         step={4}
         title="Delivery"
         isOpen={openStep === 4}
-        isComplete={step4Complete && openStep !== 4}
-        onToggle={() => setOpenStep(openStep === 4 ? 0 : 4)}
+        isComplete={step4Complete}
+        onToggle={() => openStepAndTouch(openStep === 4 ? 0 : 4)}
       >
         {/* Email Settings */}
         <Card>
@@ -1186,7 +1311,7 @@ export function TicketEditor({
           </CardContent>
         </Card>
 
-        <Button type="button" size="sm" onClick={() => setOpenStep(5)}>
+        <Button type="button" size="sm" onClick={() => openStepAndTouch(5)}>
           Continue to Review
         </Button>
       </AccordionStep>
@@ -1197,7 +1322,7 @@ export function TicketEditor({
         title="Review & Create"
         isOpen={openStep === 5}
         isComplete={false}
-        onToggle={() => setOpenStep(openStep === 5 ? 0 : 5)}
+        onToggle={() => openStepAndTouch(openStep === 5 ? 0 : 5)}
       >
         <Card>
           <CardContent className="p-4 space-y-3">
@@ -1261,7 +1386,7 @@ export function TicketEditor({
         </Card>
 
         {state.error && (
-          <p className="text-sm text-destructive">{state.error}</p>
+          <p id="ticket-save-error" className="text-sm text-destructive">{state.error}</p>
         )}
         {state.success && isEdit && (
           <p className="text-sm text-green-600">Ticket saved.</p>
@@ -1269,7 +1394,7 @@ export function TicketEditor({
 
         <Button
           type="button"
-          disabled={pending || !name.trim()}
+          disabled={pending || !name.trim() || !ticketMode}
           onClick={handleSave}
         >
           {pending

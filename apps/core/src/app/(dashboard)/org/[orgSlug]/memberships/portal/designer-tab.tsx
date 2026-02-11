@@ -49,6 +49,10 @@ export function DesignerTab({ orgSlug, settings }: DesignerTabProps) {
   const [cropperOpen, setCropperOpen] = useState(false);
   const [cropperSrc, setCropperSrc] = useState<string | null>(null);
 
+  // Pending hero image for new settings
+  const [pendingHeroFile, setPendingHeroFile] = useState<File | null>(null);
+  const [pendingHeroPreview, setPendingHeroPreview] = useState<string | null>(null);
+
   useEffect(() => {
     if (uploadState.success && uploadState.imageUrl) {
       setHeroImageUrl(uploadState.imageUrl);
@@ -61,6 +65,14 @@ export function DesignerTab({ orgSlug, settings }: DesignerTabProps) {
     }
   }, [removeState.success]);
 
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingHeroPreview) URL.revokeObjectURL(pendingHeroPreview);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   function handleSave() {
     const fd = new FormData();
     fd.append("orgSlug", orgSlug);
@@ -70,6 +82,7 @@ export function DesignerTab({ orgSlug, settings }: DesignerTabProps) {
     fd.append("buttonText", buttonText);
     fd.append("helperText", helperText);
     fd.append("accentColor", accentColor);
+    if (pendingHeroFile) fd.append("heroFile", pendingHeroFile);
     saveAction(fd);
   }
 
@@ -89,25 +102,34 @@ export function DesignerTab({ orgSlug, settings }: DesignerTabProps) {
     setCropperOpen(false);
     setCropperSrc(null);
 
-    if (!settings?.id) return;
-
-    const fd = new FormData();
-    fd.append("orgSlug", orgSlug);
-    fd.append("settingsId", settings.id);
-    fd.append("file", croppedFile);
-    startUpload(() => {
-      uploadAction(fd);
-    });
+    if (settings?.id) {
+      const fd = new FormData();
+      fd.append("orgSlug", orgSlug);
+      fd.append("settingsId", settings.id);
+      fd.append("file", croppedFile);
+      startUpload(() => {
+        uploadAction(fd);
+      });
+    } else {
+      setPendingHeroFile(croppedFile);
+      if (pendingHeroPreview) URL.revokeObjectURL(pendingHeroPreview);
+      setPendingHeroPreview(URL.createObjectURL(croppedFile));
+    }
   }
 
   function handleRemoveImage() {
-    if (!settings?.id) return;
-    const fd = new FormData();
-    fd.append("orgSlug", orgSlug);
-    fd.append("settingsId", settings.id);
-    startRemove(() => {
-      removeAction(fd);
-    });
+    if (settings?.id) {
+      const fd = new FormData();
+      fd.append("orgSlug", orgSlug);
+      fd.append("settingsId", settings.id);
+      startRemove(() => {
+        removeAction(fd);
+      });
+    } else {
+      setPendingHeroFile(null);
+      if (pendingHeroPreview) URL.revokeObjectURL(pendingHeroPreview);
+      setPendingHeroPreview(null);
+    }
   }
 
   return (
@@ -120,10 +142,10 @@ export function DesignerTab({ orgSlug, settings }: DesignerTabProps) {
             <CardTitle className="text-base">Hero Image</CardTitle>
           </CardHeader>
           <CardContent className="space-y-3">
-            {heroImageUrl && (
+            {(heroImageUrl || pendingHeroPreview) && (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={heroImageUrl}
+                src={heroImageUrl ?? pendingHeroPreview!}
                 alt="Portal hero"
                 className="max-w-[300px] rounded-md border"
                 style={{ aspectRatio: "16 / 9", objectFit: "cover" }}
@@ -138,41 +160,35 @@ export function DesignerTab({ orgSlug, settings }: DesignerTabProps) {
             {removeState.error && (
               <p className="text-sm text-destructive">{removeState.error}</p>
             )}
-            {settings?.id ? (
-              <div className="flex gap-3">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
+            <div className="flex gap-3">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                className="hidden"
+                onChange={handleFileChange}
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isUploading}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                {isUploading ? "Uploading..." : "Upload Image"}
+              </Button>
+              {(heroImageUrl || pendingHeroPreview) && (
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
-                  disabled={isUploading}
-                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isRemoving}
+                  onClick={handleRemoveImage}
                 >
-                  {isUploading ? "Uploading..." : "Upload Image"}
+                  {isRemoving ? "Removing..." : "Remove Image"}
                 </Button>
-                {heroImageUrl && (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    disabled={isRemoving}
-                    onClick={handleRemoveImage}
-                  >
-                    {isRemoving ? "Removing..." : "Remove Image"}
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground italic">
-                Save settings first, then upload a hero image.
-              </p>
-            )}
+              )}
+            </div>
           </CardContent>
         </Card>
 

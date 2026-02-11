@@ -159,13 +159,43 @@ export async function createTicketType(
     }
   }
 
+  // Upload images if provided with create
+  const bannerFile = formData.get("bannerFile") as File | null;
+  const squareFile = formData.get("squareFile") as File | null;
+  const imageUpdates: Record<string, string> = {};
+
+  if (bannerFile && bannerFile.size > 0) {
+    try {
+      const url = await uploadTicketBannerImage(org.id, newTicket.id, bannerFile);
+      imageUpdates.banner_image_url = url;
+    } catch {
+      // non-fatal: ticket was created, image upload failed silently
+    }
+  }
+
+  if (squareFile && squareFile.size > 0) {
+    try {
+      const url = await uploadTicketSquareImage(org.id, newTicket.id, squareFile);
+      imageUpdates.square_image_url = url;
+    } catch {
+      // non-fatal
+    }
+  }
+
+  if (Object.keys(imageUpdates).length > 0) {
+    await tenant
+      .from("ticket_types")
+      .update({ ...imageUpdates, updated_by: auth.tenantPersonId })
+      .eq("id", newTicket.id);
+  }
+
   await tenant.from("audit_log").insert({
     actor_person_id: auth.tenantPersonId,
     actor_type: auth.tenantPersonId ? "staff" : ("sgs_support" as const),
     action: "create" as const,
     table_name: "ticket_types",
     record_id: newTicket.id,
-    new_values: ticketData,
+    new_values: { ...ticketData, ...imageUpdates },
   });
 
   revalidatePath(`/org/${orgSlug}/tickets/list`);

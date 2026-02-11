@@ -115,6 +115,10 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
   const [cropperOpen, setCropperOpen] = useState(false);
   const [cropperSrc, setCropperSrc] = useState<string | null>(null);
 
+  // Pending image file for new cards
+  const [pendingFrontFile, setPendingFrontFile] = useState<File | null>(null);
+  const [pendingFrontPreview, setPendingFrontPreview] = useState<string | null>(null);
+
   // Preview side tracks designer side
   const [previewSide, setPreviewSide] = useState<"front" | "back">(activeSide);
   useEffect(() => {
@@ -141,6 +145,14 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
     }
   }, [removeState.success]);
 
+  // Cleanup object URL on unmount
+  useEffect(() => {
+    return () => {
+      if (pendingFrontPreview) URL.revokeObjectURL(pendingFrontPreview);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const currentFields = activeSide === "front" ? frontFields : backFields;
   const setCurrentFields =
     activeSide === "front" ? setFrontFields : setBackFields;
@@ -158,9 +170,8 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
-    if (!file || !card) return;
+    if (!file) return;
 
-    // Read file as data URL and open cropper
     const reader = new FileReader();
     reader.onload = () => {
       setCropperSrc(reader.result as string);
@@ -172,29 +183,37 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
   }
 
   function handleCropComplete(croppedFile: File) {
-    if (!card) return;
     setCropperOpen(false);
     setCropperSrc(null);
 
-    const fd = new FormData();
-    fd.append("orgSlug", orgSlug);
-    fd.append("cardId", card.id);
-    fd.append("file", croppedFile);
-
-    startUpload(() => {
-      uploadAction(fd);
-    });
+    if (isEdit && card) {
+      const fd = new FormData();
+      fd.append("orgSlug", orgSlug);
+      fd.append("cardId", card.id);
+      fd.append("file", croppedFile);
+      startUpload(() => {
+        uploadAction(fd);
+      });
+    } else {
+      setPendingFrontFile(croppedFile);
+      if (pendingFrontPreview) URL.revokeObjectURL(pendingFrontPreview);
+      setPendingFrontPreview(URL.createObjectURL(croppedFile));
+    }
   }
 
   function handleRemoveImage() {
-    if (!card) return;
-    const fd = new FormData();
-    fd.append("orgSlug", orgSlug);
-    fd.append("cardId", card.id);
-
-    startRemove(() => {
-      removeAction(fd);
-    });
+    if (isEdit && card) {
+      const fd = new FormData();
+      fd.append("orgSlug", orgSlug);
+      fd.append("cardId", card.id);
+      startRemove(() => {
+        removeAction(fd);
+      });
+    } else {
+      setPendingFrontFile(null);
+      if (pendingFrontPreview) URL.revokeObjectURL(pendingFrontPreview);
+      setPendingFrontPreview(null);
+    }
   }
 
   function handleSave() {
@@ -218,6 +237,7 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
 
     const restricted = Array.from(restrictedPlanIds);
     fd.append("restrictedPlanIds", restricted.length > 0 ? JSON.stringify(restricted) : "");
+    if (pendingFrontFile) fd.append("frontImageFile", pendingFrontFile);
 
     formAction(fd);
   }
@@ -322,10 +342,10 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
                   <CardTitle className="text-base">Front Image</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {frontImageUrl && (
+                  {(frontImageUrl || pendingFrontPreview) && (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
-                      src={frontImageUrl}
+                      src={frontImageUrl ?? pendingFrontPreview!}
                       alt="Card front image"
                       className="max-w-[200px] rounded-md border"
                     />
@@ -343,41 +363,35 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
                       {removeState.error}
                     </p>
                   )}
-                  {isEdit ? (
-                    <div className="flex gap-3">
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
-                        className="hidden"
-                        onChange={handleFileChange}
-                      />
+                  <div className="flex gap-3">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={isUploading}
+                      onClick={() => fileInputRef.current?.click()}
+                    >
+                      {isUploading ? "Uploading..." : "Upload Image"}
+                    </Button>
+                    {(frontImageUrl || pendingFrontPreview) && (
                       <Button
                         type="button"
                         variant="outline"
                         size="sm"
-                        disabled={isUploading}
-                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isRemoving}
+                        onClick={handleRemoveImage}
                       >
-                        {isUploading ? "Uploading..." : "Upload Image"}
+                        {isRemoving ? "Removing..." : "Remove Image"}
                       </Button>
-                      {frontImageUrl && (
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          disabled={isRemoving}
-                          onClick={handleRemoveImage}
-                        >
-                          {isRemoving ? "Removing..." : "Remove Image"}
-                        </Button>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-sm text-muted-foreground italic">
-                      Save the card first, then upload an image.
-                    </p>
-                  )}
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             )}

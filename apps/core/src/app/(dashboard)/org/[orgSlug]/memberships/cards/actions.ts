@@ -95,13 +95,28 @@ export async function createCardDesign(
     return { error: `Failed to create card: ${insertError.message}` };
   }
 
+  // Upload front image if provided with create
+  const frontImageFile = formData.get("frontImageFile") as File | null;
+  let frontImageUrl: string | null = null;
+  if (frontImageFile && frontImageFile.size > 0) {
+    try {
+      frontImageUrl = await uploadCardImage(org.id, newCard.id, frontImageFile);
+      await tenant
+        .from("membership_card_designs")
+        .update({ front_image_url: frontImageUrl, updated_by: auth.tenantPersonId })
+        .eq("id", newCard.id);
+    } catch {
+      // non-fatal
+    }
+  }
+
   await tenant.from("audit_log").insert({
     actor_person_id: auth.tenantPersonId,
     actor_type: auth.tenantPersonId ? "staff" : ("sgs_support" as const),
     action: "create" as const,
     table_name: "membership_card_designs",
     record_id: newCard.id,
-    new_values: cardData,
+    new_values: { ...cardData, ...(frontImageUrl ? { front_image_url: frontImageUrl } : {}) },
   });
 
   revalidatePath(`/org/${orgSlug}/memberships/cards`);
