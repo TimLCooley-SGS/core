@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useActionState } from "react";
+import Link from "next/link";
 import {
   Button,
   Badge,
@@ -146,7 +147,12 @@ export function ContactsList({ orgSlug, persons }: ContactsListProps) {
                       </td>
                     )}
                     <td className="px-4 py-3 font-medium">
-                      {person.last_name}, {person.first_name}
+                      <Link
+                        href={`/org/${orgSlug}/contacts/people/${person.id}`}
+                        className="text-primary hover:underline"
+                      >
+                        {person.last_name}, {person.first_name}
+                      </Link>
                     </td>
                     <td className="px-4 py-3 text-muted-foreground">
                       {person.email ?? "—"}

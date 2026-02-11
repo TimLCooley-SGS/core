@@ -109,3 +109,74 @@ export async function bulkUpdateStatus(
   revalidatePath(`/org/${orgSlug}/contacts/people`);
   return { success: true };
 }
+
+const EDITABLE_FIELDS = ["email", "phone", "status", "date_of_birth"] as const;
+type EditableField = (typeof EDITABLE_FIELDS)[number];
+
+export async function updatePersonField(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const orgSlug = formData.get("orgSlug") as string;
+  const personId = formData.get("personId") as string;
+  const field = formData.get("field") as string;
+  const value = (formData.get("value") as string) || null;
+
+  if (!orgSlug) return { error: "Missing org slug." };
+  if (!personId) return { error: "Missing person ID." };
+  if (!field) return { error: "Missing field name." };
+
+  if (!EDITABLE_FIELDS.includes(field as EditableField)) {
+    return { error: `Field "${field}" is not editable.` };
+  }
+
+  if (
+    field === "status" &&
+    value !== "active" &&
+    value !== "inactive"
+  ) {
+    return { error: "Invalid status. Must be active or inactive." };
+  }
+
+  const auth = await requirePeopleUpdate(orgSlug);
+  if ("error" in auth) return { error: auth.error };
+
+  const org = await getOrgBySlug(orgSlug);
+  if (!org) return { error: "Organization not found." };
+
+  const tenant = getTenantClient(org);
+
+  // Fetch old value for audit trail
+  const { data: existing } = await tenant
+    .from("persons")
+    .select(field)
+    .eq("id", personId)
+    .single();
+
+  if (!existing) return { error: "Person not found." };
+
+  const oldValue = (existing as unknown as Record<string, unknown>)[field];
+
+  const { error: updateError } = await tenant
+    .from("persons")
+    .update({ [field]: value, updated_by: auth.tenantPersonId })
+    .eq("id", personId);
+
+  if (updateError) {
+    return { error: `Failed to update: ${updateError.message}` };
+  }
+
+  await tenant.from("audit_log").insert({
+    actor_person_id: auth.tenantPersonId,
+    actor_type: auth.tenantPersonId ? "staff" : ("sgs_support" as const),
+    action: "update" as const,
+    table_name: "persons",
+    record_id: personId,
+    old_values: { [field]: oldValue },
+    new_values: { [field]: value },
+  });
+
+  revalidatePath(`/org/${orgSlug}/contacts/people/${personId}`);
+  revalidatePath(`/org/${orgSlug}/contacts/people`);
+  return { success: true };
+}

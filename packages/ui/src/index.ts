@@ -17,6 +17,7 @@ export { Badge, badgeVariants, type BadgeProps } from "./components/badge";
 export { Separator } from "./components/separator";
 export { Skeleton } from "./components/skeleton";
 export { Avatar, AvatarImage, AvatarFallback } from "./components/avatar";
+export { Collapsible } from "./components/collapsible";
 
 // Overlays
 export {
