@@ -24,6 +24,7 @@ import type {
   MembershipPlanStatus,
 } from "@sgscore/types/tenant";
 import { CardPreview } from "./card-preview";
+import { ImageCropper } from "./image-cropper";
 import {
   createCardDesign,
   updateCardDesign,
@@ -110,6 +111,10 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
   const [isUploading, startUpload] = useTransition();
   const [isRemoving, startRemove] = useTransition();
 
+  // Cropper state
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [cropperSrc, setCropperSrc] = useState<string | null>(null);
+
   // Preview side tracks designer side
   const [previewSide, setPreviewSide] = useState<"front" | "back">(activeSide);
   useEffect(() => {
@@ -156,16 +161,30 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
     const file = e.target.files?.[0];
     if (!file || !card) return;
 
+    // Read file as data URL and open cropper
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCropperSrc(reader.result as string);
+      setCropperOpen(true);
+    };
+    reader.readAsDataURL(file);
+
+    e.target.value = "";
+  }
+
+  function handleCropComplete(croppedFile: File) {
+    if (!card) return;
+    setCropperOpen(false);
+    setCropperSrc(null);
+
     const fd = new FormData();
     fd.append("orgSlug", orgSlug);
     fd.append("cardId", card.id);
-    fd.append("file", file);
+    fd.append("file", croppedFile);
 
     startUpload(() => {
       uploadAction(fd);
     });
-
-    e.target.value = "";
   }
 
   function handleRemoveImage() {
@@ -593,6 +612,19 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
           frontImageUrl={frontImageUrl}
         />
       </div>
+
+      {/* Image Cropper Dialog */}
+      {cropperSrc && (
+        <ImageCropper
+          open={cropperOpen}
+          imageSrc={cropperSrc}
+          onClose={() => {
+            setCropperOpen(false);
+            setCropperSrc(null);
+          }}
+          onCropComplete={handleCropComplete}
+        />
+      )}
     </div>
   );
 }
