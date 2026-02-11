@@ -1,16 +1,13 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@sgscore/ui";
+import { getLists } from "./actions";
+import { ListsOverview } from "./components/lists-overview";
 
-export default function ListsPage() {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Lists</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <p className="text-muted-foreground">
-          Saved segments and smart lists will be built here.
-        </p>
-      </CardContent>
-    </Card>
-  );
+export default async function ListsPage({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>;
+}) {
+  const { orgSlug } = await params;
+  const lists = await getLists(orgSlug);
+
+  return <ListsOverview lists={lists} />;
 }

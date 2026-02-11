@@ -5,6 +5,8 @@ import { createContext, useContext } from "react";
 interface OrgContextValue {
   org: { id: string; name: string; slug: string };
   capabilities: string[];
+  supabaseUrl: string;
+  supabaseAnonKey: string;
 }
 
 const OrgContext = createContext<OrgContextValue | null>(null);
@@ -23,10 +25,12 @@ export function useHasCapability(key: string): boolean {
 export function OrgProvider({
   org,
   capabilities,
+  supabaseUrl,
+  supabaseAnonKey,
   children,
 }: OrgContextValue & { children: React.ReactNode }) {
   return (
-    <OrgContext.Provider value={{ org, capabilities }}>
+    <OrgContext.Provider value={{ org, capabilities, supabaseUrl, supabaseAnonKey }}>
       {children}
     </OrgContext.Provider>
   );

@@ -10,6 +10,8 @@ import type {
   VisitRow,
   MembershipSeatRow,
   AuditLogRow,
+  PersonTagRow,
+  TagRow,
 } from "./page";
 import { ContactSidebar } from "./contact-sidebar";
 import { ContactTabs } from "./contact-tabs";
@@ -23,6 +25,8 @@ interface ContactDetailProps {
   visits: VisitRow[];
   seats: MembershipSeatRow[];
   auditLog: AuditLogRow[];
+  personTags: PersonTagRow[];
+  allTags: TagRow[];
 }
 
 export function ContactDetail({
@@ -34,6 +38,8 @@ export function ContactDetail({
   visits,
   seats,
   auditLog,
+  personTags,
+  allTags,
 }: ContactDetailProps) {
   const router = useRouter();
 
@@ -50,6 +56,8 @@ export function ContactDetail({
             person={person}
             householdMembers={householdMembers}
             householdPeers={householdPeers}
+            personTags={personTags}
+            allTags={allTags}
           />
         </aside>
         <div className="flex-1 min-w-0">

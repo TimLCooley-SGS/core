@@ -77,6 +77,17 @@ export interface AuditLogRow {
   created_at: string;
 }
 
+export interface PersonTagRow {
+  id: string;
+  tag: { id: string; name: string; color: string };
+}
+
+export interface TagRow {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export default async function PersonDetailPage({
   params,
 }: {
@@ -91,7 +102,7 @@ export default async function PersonDetailPage({
 
   const tenant = getTenantClient(org);
 
-  const [personResult, householdMembersResult, donationsResult, visitsResult, seatsResult, auditResult] =
+  const [personResult, householdMembersResult, donationsResult, visitsResult, seatsResult, auditResult, personTagsResult, allTagsResult] =
     await Promise.all([
       tenant
         .from("persons")
@@ -131,6 +142,14 @@ export default async function PersonDetailPage({
         .or(`record_id.eq.${personId},actor_person_id.eq.${personId}`)
         .order("created_at", { ascending: false })
         .limit(50),
+      tenant
+        .from("person_tags")
+        .select("id, tag:tags(id, name, color)")
+        .eq("person_id", personId),
+      tenant
+        .from("tags")
+        .select("id, name, color")
+        .order("name"),
     ]);
 
   if (!personResult.data) notFound();
@@ -141,6 +160,8 @@ export default async function PersonDetailPage({
   const visits = (visitsResult.data ?? []) as VisitRow[];
   const seats = (seatsResult.data ?? []) as unknown as MembershipSeatRow[];
   const auditLog = (auditResult.data ?? []) as AuditLogRow[];
+  const personTags = (personTagsResult.data ?? []) as unknown as PersonTagRow[];
+  const allTags = (allTagsResult.data ?? []) as TagRow[];
 
   // Fetch household peers: other members of the same households
   const householdIds = householdMembers.map((hm) => hm.household.id);
@@ -167,6 +188,8 @@ export default async function PersonDetailPage({
       visits={visits}
       seats={seats}
       auditLog={auditLog}
+      personTags={personTags}
+      allTags={allTags}
     />
   );
 }

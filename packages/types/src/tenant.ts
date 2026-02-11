@@ -417,6 +417,77 @@ export interface TicketPriceType {
   updated_at: string;
 }
 
+/* ── Tags ── */
+
+export interface Tag {
+  id: string;
+  name: string;
+  color: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PersonTag {
+  id: string;
+  person_id: string;
+  tag_id: string;
+  created_at: string;
+}
+
+export interface TicketTag {
+  id: string;
+  ticket_type_id: string;
+  tag_id: string;
+  created_at: string;
+}
+
+/* ── Contact Lists ── */
+
+export type ContactListType = 'smart' | 'static';
+export type FilterLogic = 'and' | 'or';
+export type FilterOp =
+  | 'eq'
+  | 'neq'
+  | 'contains'
+  | 'not_contains'
+  | 'is_null'
+  | 'is_not_null'
+  | 'includes_any'
+  | 'includes_all'
+  | 'includes_none'
+  | 'gte'
+  | 'lte';
+
+export interface FilterCondition {
+  field: string;
+  op: FilterOp;
+  value: string | string[] | boolean | null;
+}
+
+export interface FilterRules {
+  logic: FilterLogic;
+  conditions: FilterCondition[];
+}
+
+export interface ContactList {
+  id: string;
+  name: string;
+  description: string | null;
+  type: ContactListType;
+  filter_rules: FilterRules | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ContactListMember {
+  id: string;
+  list_id: string;
+  person_id: string;
+  added_at: string;
+  added_by: string | null;
+}
+
 /* ── Ticket Designs ── */
 
 export interface TicketDesignFieldConfig {

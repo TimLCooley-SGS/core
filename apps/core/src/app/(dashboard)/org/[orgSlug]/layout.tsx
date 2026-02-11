@@ -75,6 +75,8 @@ export default async function OrgLayout({
     <OrgProvider
       org={{ id: org.id, name: org.name, slug: org.slug }}
       capabilities={capabilities}
+      supabaseUrl={org.supabase_url ?? ""}
+      supabaseAnonKey={org.supabase_anon_key ?? ""}
     >
       <div className="flex h-screen">
         <Sidebar />

@@ -21,6 +21,23 @@ export { Skeleton } from "./components/skeleton";
 export { Avatar, AvatarImage, AvatarFallback } from "./components/avatar";
 export { Collapsible } from "./components/collapsible";
 
+// Selection
+export {
+  Select,
+  SelectGroup,
+  SelectValue,
+  SelectTrigger,
+  SelectContent,
+  SelectLabel,
+  SelectItem,
+  SelectSeparator,
+} from "./components/select";
+export {
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+} from "./components/popover";
+
 // Overlays
 export {
   Dialog,

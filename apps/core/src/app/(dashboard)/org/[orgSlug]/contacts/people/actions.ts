@@ -161,6 +161,56 @@ export async function createPerson(
   return { success: true };
 }
 
+// ---------------------------------------------------------------------------
+// Person tags
+// ---------------------------------------------------------------------------
+
+export async function addPersonTag(
+  orgSlug: string,
+  personId: string,
+  tagId: string,
+): Promise<ActionState> {
+  const auth = await requirePeopleUpdate(orgSlug);
+  if ("error" in auth) return { error: auth.error };
+
+  const org = await getOrgBySlug(orgSlug);
+  if (!org) return { error: "Organization not found." };
+
+  const tenant = getTenantClient(org);
+  const { error } = await tenant
+    .from("person_tags")
+    .insert({ person_id: personId, tag_id: tagId });
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/org/${orgSlug}/contacts/people/${personId}`);
+  return { success: true };
+}
+
+export async function removePersonTag(
+  orgSlug: string,
+  personId: string,
+  tagId: string,
+): Promise<ActionState> {
+  const auth = await requirePeopleUpdate(orgSlug);
+  if ("error" in auth) return { error: auth.error };
+
+  const org = await getOrgBySlug(orgSlug);
+  if (!org) return { error: "Organization not found." };
+
+  const tenant = getTenantClient(org);
+  const { error } = await tenant
+    .from("person_tags")
+    .delete()
+    .eq("person_id", personId)
+    .eq("tag_id", tagId);
+
+  if (error) return { error: error.message };
+
+  revalidatePath(`/org/${orgSlug}/contacts/people/${personId}`);
+  return { success: true };
+}
+
 const EDITABLE_FIELDS = ["email", "phone", "status", "date_of_birth"] as const;
 type EditableField = (typeof EDITABLE_FIELDS)[number];
 

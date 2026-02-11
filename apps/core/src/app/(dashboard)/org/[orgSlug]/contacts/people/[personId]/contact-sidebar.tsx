@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useActionState } from "react";
+import { useState, useRef, useActionState, useTransition } from "react";
 import Link from "next/link";
 import {
   Card,
@@ -11,17 +11,23 @@ import {
   Button,
   Input,
   Collapsible,
+  Popover,
+  PopoverTrigger,
+  PopoverContent,
+  Checkbox,
 } from "@sgscore/ui";
-import { StickyNote, Mail, Phone } from "lucide-react";
-import { useHasCapability } from "@/components/org-provider";
-import type { PersonDetail, HouseholdMemberRow } from "./page";
-import { updatePersonField } from "../actions";
+import { StickyNote, Mail, Phone, Plus, X } from "lucide-react";
+import { useHasCapability, useOrg } from "@/components/org-provider";
+import type { PersonDetail, HouseholdMemberRow, PersonTagRow, TagRow } from "./page";
+import { updatePersonField, addPersonTag, removePersonTag } from "../actions";
 
 interface ContactSidebarProps {
   orgSlug: string;
   person: PersonDetail;
   householdMembers: HouseholdMemberRow[];
   householdPeers: HouseholdMemberRow[];
+  personTags: PersonTagRow[];
+  allTags: TagRow[];
 }
 
 function getInitials(first: string, last: string): string {
@@ -167,11 +173,122 @@ function StatusField({
   );
 }
 
+function TagsSection({
+  orgSlug,
+  personId,
+  personTags,
+  allTags,
+  canEdit,
+}: {
+  orgSlug: string;
+  personId: string;
+  personTags: PersonTagRow[];
+  allTags: TagRow[];
+  canEdit: boolean;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [search, setSearch] = useState("");
+
+  const tagIds = new Set(personTags.map((pt) => pt.tag.id));
+  const available = allTags.filter(
+    (t) => !tagIds.has(t.id) && t.name.toLowerCase().includes(search.toLowerCase()),
+  );
+
+  function handleAdd(tagId: string) {
+    startTransition(async () => {
+      await addPersonTag(orgSlug, personId, tagId);
+    });
+  }
+
+  function handleRemove(tagId: string) {
+    startTransition(async () => {
+      await removePersonTag(orgSlug, personId, tagId);
+    });
+  }
+
+  return (
+    <div className="pb-3 space-y-2">
+      <div className="flex flex-wrap gap-1">
+        {personTags.map((pt) => (
+          <Badge
+            key={pt.id}
+            variant="secondary"
+            className="text-xs gap-1 pr-1"
+          >
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: pt.tag.color }}
+            />
+            {pt.tag.name}
+            {canEdit && (
+              <button
+                type="button"
+                className="ml-0.5 rounded-full hover:bg-muted-foreground/20 p-0.5"
+                onClick={() => handleRemove(pt.tag.id)}
+                disabled={isPending}
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            )}
+          </Badge>
+        ))}
+        {personTags.length === 0 && !canEdit && (
+          <span className="text-sm text-muted-foreground">No tags</span>
+        )}
+      </div>
+      {canEdit && (
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" size="sm" className="h-6 text-xs gap-1">
+              <Plus className="h-3 w-3" />
+              Add tag
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-52 p-2" align="start">
+            <Input
+              placeholder="Search tags..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="h-7 text-xs mb-2"
+            />
+            <div className="max-h-32 overflow-y-auto space-y-0.5">
+              {available.map((tag) => (
+                <button
+                  key={tag.id}
+                  type="button"
+                  className="flex items-center gap-2 w-full px-2 py-1 rounded text-sm hover:bg-muted transition-colors"
+                  onClick={() => handleAdd(tag.id)}
+                  disabled={isPending}
+                >
+                  <span
+                    className="h-2.5 w-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: tag.color }}
+                  />
+                  {tag.name}
+                </button>
+              ))}
+              {available.length === 0 && (
+                <p className="text-xs text-muted-foreground py-1 px-2">
+                  {allTags.length === 0
+                    ? "No tags created yet."
+                    : "All tags assigned."}
+                </p>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+      )}
+    </div>
+  );
+}
+
 export function ContactSidebar({
   orgSlug,
   person,
   householdMembers,
   householdPeers,
+  personTags,
+  allTags,
 }: ContactSidebarProps) {
   const canEdit = useHasCapability("people.update");
 
@@ -276,6 +393,17 @@ export function ContactSidebar({
               canEdit={canEdit}
             />
           </div>
+        </Collapsible>
+
+        {/* Tags */}
+        <Collapsible title="Tags" defaultOpen>
+          <TagsSection
+            orgSlug={orgSlug}
+            personId={person.id}
+            personTags={personTags}
+            allTags={allTags}
+            canEdit={canEdit}
+          />
         </Collapsible>
 
         {/* Relationships */}
