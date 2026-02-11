@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  LayoutDashboard,
   Ticket,
   Heart,
   Users,
@@ -28,6 +29,7 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   capability?: string;
+  exact?: boolean;
 }
 
 export function Sidebar() {
@@ -36,6 +38,7 @@ export function Sidebar() {
   const { org } = useOrg();
 
   const navItems: NavItem[] = [
+    { label: "Dashboard", href: `/org/${org.slug}`, icon: LayoutDashboard, exact: true },
     { label: "Tickets", href: `/org/${org.slug}/tickets`, icon: Ticket, capability: "tickets.read" },
     { label: "Donations", href: `/org/${org.slug}/donations`, icon: Heart, capability: "donations.read" },
     { label: "Memberships", href: `/org/${org.slug}/memberships`, icon: Users, capability: "memberships.read" },
@@ -123,7 +126,9 @@ function SidebarItem({
 
   if (!hasAccess) return null;
 
-  const isActive = pathname.startsWith(item.href);
+  const isActive = item.exact
+    ? pathname === item.href
+    : pathname.startsWith(item.href);
 
   const link = (
     <Link

@@ -110,6 +110,57 @@ export async function bulkUpdateStatus(
   return { success: true };
 }
 
+export async function createPerson(
+  _prev: ActionState,
+  formData: FormData,
+): Promise<ActionState> {
+  const orgSlug = formData.get("orgSlug") as string;
+  const firstName = (formData.get("firstName") as string)?.trim();
+  const lastName = (formData.get("lastName") as string)?.trim() || null;
+  const email = (formData.get("email") as string)?.trim();
+  const phone = (formData.get("phone") as string)?.trim() || null;
+
+  if (!orgSlug) return { error: "Missing org slug." };
+  if (!firstName) return { error: "First name is required." };
+  if (!email) return { error: "Email is required." };
+
+  const auth = await requirePeopleUpdate(orgSlug);
+  if ("error" in auth) return { error: auth.error };
+
+  const org = await getOrgBySlug(orgSlug);
+  if (!org) return { error: "Organization not found." };
+
+  const tenant = getTenantClient(org);
+
+  const { data: newPerson, error: insertError } = await tenant
+    .from("persons")
+    .insert({
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      phone,
+      created_by: auth.tenantPersonId,
+    })
+    .select("id")
+    .single();
+
+  if (insertError) {
+    return { error: `Failed to create person: ${insertError.message}` };
+  }
+
+  await tenant.from("audit_log").insert({
+    actor_person_id: auth.tenantPersonId,
+    actor_type: auth.tenantPersonId ? "staff" : ("sgs_support" as const),
+    action: "create" as const,
+    table_name: "persons",
+    record_id: newPerson.id,
+    new_values: { first_name: firstName, last_name: lastName, email, phone },
+  });
+
+  revalidatePath(`/org/${orgSlug}/contacts/people`);
+  return { success: true };
+}
+
 const EDITABLE_FIELDS = ["email", "phone", "status", "date_of_birth"] as const;
 type EditableField = (typeof EDITABLE_FIELDS)[number];
 
