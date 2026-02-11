@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
@@ -48,6 +49,8 @@ export function RichTextEditor({
   placeholder,
   minHeight = "120px",
 }: RichTextEditorProps) {
+  const [focused, setFocused] = useState(false);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -83,6 +86,8 @@ export function RichTextEditor({
     onUpdate: ({ editor: e }) => {
       onChange(e.getHTML());
     },
+    onFocus: () => setFocused(true),
+    onBlur: () => setFocused(false),
   });
 
   if (!editor) return null;
@@ -116,28 +121,28 @@ export function RichTextEditor({
       <div className="flex flex-wrap gap-1 border-b p-1.5">
         {/* Text formatting */}
         <ToolbarButton
-          active={editor.isActive("bold")}
+          active={focused && editor.isActive("bold")}
           onClick={() => editor.chain().focus().toggleBold().run()}
           title="Bold"
         >
           <Bold className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("italic")}
+          active={focused && editor.isActive("italic")}
           onClick={() => editor.chain().focus().toggleItalic().run()}
           title="Italic"
         >
           <Italic className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("underline")}
+          active={focused && editor.isActive("underline")}
           onClick={() => editor.chain().focus().toggleUnderline().run()}
           title="Underline"
         >
           <UnderlineIcon className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("strike")}
+          active={focused && editor.isActive("strike")}
           onClick={() => editor.chain().focus().toggleStrike().run()}
           title="Strikethrough"
         >
@@ -148,21 +153,21 @@ export function RichTextEditor({
 
         {/* Headings */}
         <ToolbarButton
-          active={editor.isActive("heading", { level: 1 })}
+          active={focused && editor.isActive("heading", { level: 1 })}
           onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
           title="Heading 1"
         >
           <Heading1 className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("heading", { level: 2 })}
+          active={focused && editor.isActive("heading", { level: 2 })}
           onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
           title="Heading 2"
         >
           <Heading2 className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("heading", { level: 3 })}
+          active={focused && editor.isActive("heading", { level: 3 })}
           onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
           title="Heading 3"
         >
@@ -173,14 +178,14 @@ export function RichTextEditor({
 
         {/* Lists */}
         <ToolbarButton
-          active={editor.isActive("bulletList")}
+          active={focused && editor.isActive("bulletList")}
           onClick={() => editor.chain().focus().toggleBulletList().run()}
           title="Bullet List"
         >
           <List className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive("orderedList")}
+          active={focused && editor.isActive("orderedList")}
           onClick={() => editor.chain().focus().toggleOrderedList().run()}
           title="Ordered List"
         >
@@ -191,21 +196,21 @@ export function RichTextEditor({
 
         {/* Alignment */}
         <ToolbarButton
-          active={editor.isActive({ textAlign: "left" })}
+          active={focused && editor.isActive({ textAlign: "left" })}
           onClick={() => editor.chain().focus().setTextAlign("left").run()}
           title="Align Left"
         >
           <AlignLeft className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive({ textAlign: "center" })}
+          active={focused && editor.isActive({ textAlign: "center" })}
           onClick={() => editor.chain().focus().setTextAlign("center").run()}
           title="Align Center"
         >
           <AlignCenter className="h-4 w-4" />
         </ToolbarButton>
         <ToolbarButton
-          active={editor.isActive({ textAlign: "right" })}
+          active={focused && editor.isActive({ textAlign: "right" })}
           onClick={() => editor.chain().focus().setTextAlign("right").run()}
           title="Align Right"
         >
@@ -216,7 +221,7 @@ export function RichTextEditor({
 
         {/* Insert */}
         <ToolbarButton
-          active={editor.isActive("link")}
+          active={focused && editor.isActive("link")}
           onClick={setLink}
           title="Link"
         >
