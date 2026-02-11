@@ -133,16 +133,20 @@ export function DesignPreview({
       {/* Body text block */}
       {bodyText && (
         <div className="rounded-lg border p-4">
-          <p className="text-sm whitespace-pre-line">{bodyText}</p>
+          <div
+            className="prose prose-sm max-w-none"
+            dangerouslySetInnerHTML={{ __html: bodyText }}
+          />
         </div>
       )}
 
       {/* Terms text block */}
       {termsText && (
         <div className="rounded-lg border p-3">
-          <p className="text-xs text-muted-foreground whitespace-pre-line">
-            {termsText}
-          </p>
+          <div
+            className="prose prose-xs max-w-none text-xs text-muted-foreground"
+            dangerouslySetInnerHTML={{ __html: termsText }}
+          />
         </div>
       )}
 

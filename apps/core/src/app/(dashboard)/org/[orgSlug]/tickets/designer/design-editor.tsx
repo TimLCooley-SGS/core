@@ -11,7 +11,6 @@ import {
   Input,
   Label,
   Switch,
-  Textarea,
 } from "@sgscore/ui";
 import type {
   TicketDesign,
@@ -20,6 +19,7 @@ import type {
   TicketDesignOptions,
   TicketDesignOptionKey,
 } from "@sgscore/types/tenant";
+import { RichTextEditor } from "@/components/rich-text-editor";
 import { DesignPreview } from "./design-preview";
 import { createTicketDesign, updateTicketDesign } from "./actions";
 
@@ -44,18 +44,21 @@ const DEFAULT_OPTIONS: TicketDesignOptions = {
   qr_code: false,
 };
 
-const FIELD_LABELS: Record<TicketDesignFieldKey, string> = {
-  guest_name: "Guest Name",
-  date: "Date",
-  time: "Time",
-  barcode: "Barcode",
-  event_name: "Event Name",
-  location: "Location",
-  ticket_price: "Ticket Price",
-  ticket_number: "Ticket Number",
-  order_number: "Order Number",
-  registrant_name: "Registrant Name",
-};
+// Ordered to match ticket preview layout: left panel fields, then right panel
+const LEFT_PANEL_FIELDS: { key: TicketDesignFieldKey; label: string }[] = [
+  { key: "barcode", label: "Barcode" },
+  { key: "order_number", label: "Order Number" },
+  { key: "ticket_number", label: "Ticket Number" },
+];
+const RIGHT_PANEL_FIELDS: { key: TicketDesignFieldKey; label: string }[] = [
+  { key: "event_name", label: "Event Name" },
+  { key: "guest_name", label: "Guest Name" },
+  { key: "location", label: "Location" },
+  { key: "date", label: "Date" },
+  { key: "time", label: "Time" },
+  { key: "ticket_price", label: "Ticket Price" },
+  { key: "registrant_name", label: "Registrant Name" },
+];
 
 const OPTION_LABELS: Record<TicketDesignOptionKey, string> = {
   mobile_pdf: "Mobile PDF",
@@ -90,10 +93,10 @@ export function DesignEditor({ orgSlug, design }: DesignEditorProps) {
     design?.font_color ?? "#000000",
   );
   const [bodyText, setBodyText] = useState(
-    design?.body_text ?? "Your Tickets\n\nThank you for your purchase!",
+    design?.body_text ?? "<h2>Your Tickets</h2><p>Thank you for your purchase!</p>",
   );
   const [termsText, setTermsText] = useState(
-    design?.terms_text ?? "TERMS AND CONDITIONS NO REFUNDS. RESALE IS PROHIBITED.",
+    design?.terms_text ?? "<p><strong>TERMS AND CONDITIONS</strong> NO REFUNDS. RESALE IS PROHIBITED.</p>",
   );
 
   // Form actions
@@ -171,23 +174,38 @@ export function DesignEditor({ orgSlug, design }: DesignEditorProps) {
           <CardHeader>
             <CardTitle className="text-base">Ticket Fields</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-4">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Left Panel</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {(Object.keys(FIELD_LABELS) as TicketDesignFieldKey[]).map(
-                (key) => (
-                  <div
-                    key={key}
-                    className="flex items-center justify-between rounded-md border px-3 py-2"
-                  >
-                    <Label htmlFor={`field-${key}`}>{FIELD_LABELS[key]}</Label>
-                    <Switch
-                      id={`field-${key}`}
-                      checked={fieldConfig[key]}
-                      onCheckedChange={() => toggleField(key)}
-                    />
-                  </div>
-                ),
-              )}
+              {LEFT_PANEL_FIELDS.map(({ key, label }) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between rounded-md border px-3 py-2"
+                >
+                  <Label htmlFor={`field-${key}`}>{label}</Label>
+                  <Switch
+                    id={`field-${key}`}
+                    checked={fieldConfig[key]}
+                    onCheckedChange={() => toggleField(key)}
+                  />
+                </div>
+              ))}
+            </div>
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Right Panel</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {RIGHT_PANEL_FIELDS.map(({ key, label }) => (
+                <div
+                  key={key}
+                  className="flex items-center justify-between rounded-md border px-3 py-2"
+                >
+                  <Label htmlFor={`field-${key}`}>{label}</Label>
+                  <Switch
+                    id={`field-${key}`}
+                    checked={fieldConfig[key]}
+                    onCheckedChange={() => toggleField(key)}
+                  />
+                </div>
+              ))}
             </div>
           </CardContent>
         </Card>
@@ -269,11 +287,11 @@ export function DesignEditor({ orgSlug, design }: DesignEditorProps) {
             <CardTitle className="text-base">Body Text</CardTitle>
           </CardHeader>
           <CardContent>
-            <Textarea
-              rows={6}
-              value={bodyText}
-              onChange={(e) => setBodyText(e.target.value)}
+            <RichTextEditor
+              content={bodyText}
+              onChange={setBodyText}
               placeholder="Message shown above the ticket..."
+              minHeight="150px"
             />
           </CardContent>
         </Card>
@@ -284,11 +302,11 @@ export function DesignEditor({ orgSlug, design }: DesignEditorProps) {
             <CardTitle className="text-base">Terms & Conditions</CardTitle>
           </CardHeader>
           <CardContent>
-            <Textarea
-              rows={4}
-              value={termsText}
-              onChange={(e) => setTermsText(e.target.value)}
+            <RichTextEditor
+              content={termsText}
+              onChange={setTermsText}
               placeholder="Terms and conditions text..."
+              minHeight="100px"
             />
           </CardContent>
         </Card>
