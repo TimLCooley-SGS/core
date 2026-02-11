@@ -130,11 +130,10 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
 
   // Update local image state on successful upload/remove
   useEffect(() => {
-    if (uploadState.success) {
-      // Reload to get new image URL
-      router.refresh();
+    if (uploadState.success && uploadState.imageUrl) {
+      setFrontImageUrl(uploadState.imageUrl);
     }
-  }, [uploadState.success, router]);
+  }, [uploadState.success, uploadState.imageUrl]);
 
   useEffect(() => {
     if (removeState.success) {

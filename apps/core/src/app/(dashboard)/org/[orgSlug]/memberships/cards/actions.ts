@@ -17,6 +17,7 @@ interface ActionState {
   error?: string;
   success?: boolean;
   cardId?: string;
+  imageUrl?: string;
 }
 
 const ALL_FIELDS: MembershipCardField[] = [
@@ -321,7 +322,7 @@ export async function uploadFrontImage(
     });
 
     revalidatePath(`/org/${orgSlug}/memberships/cards/${cardId}`);
-    return { success: true };
+    return { success: true, imageUrl: publicUrl };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Upload failed." };
   }
