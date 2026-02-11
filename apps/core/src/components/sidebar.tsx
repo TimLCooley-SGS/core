@@ -11,6 +11,7 @@ import {
   CalendarDays,
   BarChart3,
   Contact,
+  Mail,
   Settings,
   ChevronLeft,
   ChevronRight,
@@ -45,6 +46,7 @@ export function Sidebar() {
     { label: "Events", href: `/org/${org.slug}/events`, icon: CalendarDays, capability: "events.read" },
     { label: "Analytics", href: `/org/${org.slug}/analytics`, icon: BarChart3, capability: "analytics.read" },
     { label: "Contacts", href: `/org/${org.slug}/contacts`, icon: Contact, capability: "people.read" },
+    { label: "Communication", href: `/org/${org.slug}/communication`, icon: Mail },
     { label: "Settings", href: `/org/${org.slug}/settings`, icon: Settings, capability: "settings.read" },
   ];
 
