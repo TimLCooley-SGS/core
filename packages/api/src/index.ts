@@ -51,4 +51,10 @@ export {
   deleteOrgLogo,
   uploadCardImage,
   deleteCardImage,
+  uploadPortalImage,
+  deletePortalImage,
+  uploadModuleFile,
+  deleteModuleFile,
+  uploadModuleThumbnail,
+  deleteModuleThumbnail,
 } from "./storage";

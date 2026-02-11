@@ -270,3 +270,75 @@ export interface MembershipCardDesign {
   created_at: string;
   updated_at: string;
 }
+
+// Membership Portal
+
+export type PortalModuleType = 'text' | 'video' | 'pdf' | 'audio' | 'html' | 'file_download';
+export type PortalModuleStatus = 'draft' | 'published' | 'archived';
+export type PortalAnnouncementStatus = 'draft' | 'published' | 'archived';
+export type PortalQuestionStatus = 'pending' | 'answered' | 'archived';
+
+export interface PortalSettings {
+  id: string;
+  is_published: boolean;
+  hero_image_url: string | null;
+  welcome_heading: string;
+  welcome_body: string;
+  button_text: string;
+  helper_text: string;
+  accent_color: string;
+  restricted_card_design_ids: string[] | null;
+  portal_slug: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PortalModule {
+  id: string;
+  title: string;
+  description: string | null;
+  thumbnail_url: string | null;
+  module_type: PortalModuleType;
+  content_html: string | null;
+  embed_url: string | null;
+  file_url: string | null;
+  file_name: string | null;
+  file_size_bytes: number | null;
+  sort_order: number;
+  status: PortalModuleStatus;
+  restricted_card_design_ids: string[] | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PortalAnnouncement {
+  id: string;
+  title: string;
+  content_html: string;
+  status: PortalAnnouncementStatus;
+  starts_at: string | null;
+  ends_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PortalQuestion {
+  id: string;
+  person_id: string | null;
+  subject: string;
+  content: string;
+  status: PortalQuestionStatus;
+  answer_html: string | null;
+  answered_by: string | null;
+  answered_at: string | null;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}

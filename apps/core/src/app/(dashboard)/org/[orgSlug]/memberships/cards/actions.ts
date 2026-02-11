@@ -1,17 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createSupabaseServerClient } from "@/lib/supabase/server";
 import {
-  getControlPlaneClient,
   getOrgBySlug,
   getTenantClient,
-  getSgsStaffByIdentity,
-  resolveCapabilityKeys,
   uploadCardImage,
   deleteCardImage,
 } from "@sgscore/api";
 import type { MembershipCardField } from "@sgscore/types/tenant";
+import { requireMembershipManage } from "@/lib/auth-guards";
 
 interface ActionState {
   error?: string;
@@ -32,49 +29,6 @@ const ALL_FIELDS: MembershipCardField[] = [
   "barcode",
   "member_since",
 ];
-
-async function requireMembershipManage(
-  orgSlug: string,
-): Promise<
-  { userId: string; orgId: string; tenantPersonId: string | null } | { error: string }
-> {
-  const supabase = await createSupabaseServerClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return { error: "Not authenticated." };
-
-  const org = await getOrgBySlug(orgSlug);
-  if (!org) return { error: "Organization not found." };
-
-  const staff = await getSgsStaffByIdentity(user.id);
-  if (staff) return { userId: user.id, orgId: org.id, tenantPersonId: null };
-
-  const cp = getControlPlaneClient();
-  const { data: link } = await cp
-    .from("identity_org_links")
-    .select("tenant_person_id")
-    .eq("global_identity_id", user.id)
-    .eq("organization_id", org.id)
-    .eq("status", "active")
-    .single();
-
-  if (!link) return { error: "Not authorized." };
-
-  const tenantClient = getTenantClient(org);
-  const capabilities = await resolveCapabilityKeys(
-    tenantClient,
-    link.tenant_person_id,
-  );
-
-  if (
-    !capabilities.includes("memberships.manage")
-  ) {
-    return { error: "Not authorized. Requires memberships.manage capability." };
-  }
-
-  return { userId: user.id, orgId: org.id, tenantPersonId: link.tenant_person_id };
-}
 
 function parseFields(raw: string | null): MembershipCardField[] {
   if (!raw) return [];
