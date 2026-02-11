@@ -1,106 +1,26 @@
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  Badge,
-  Button,
-} from "@sgscore/ui";
+import { getOrgBySlug, getTenantClient } from "@sgscore/api";
+import { redirect } from "next/navigation";
+import type { TicketType } from "@sgscore/types/tenant";
+import { TicketsList } from "./tickets-list";
 
-interface MockTicket {
-  id: string;
-  name: string;
-  price: number;
-  status: "active" | "draft" | "sold-out";
-  sold: number;
-  available: number;
-}
+export default async function TicketsListPage({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>;
+}) {
+  const { orgSlug } = await params;
+  const org = await getOrgBySlug(orgSlug);
+  if (!org) redirect("/org-picker");
 
-const tickets: MockTicket[] = [
-  {
-    id: "1",
-    name: "General Admission",
-    price: 15,
-    status: "active",
-    sold: 342,
-    available: 658,
-  },
-  {
-    id: "2",
-    name: "VIP Pass",
-    price: 75,
-    status: "active",
-    sold: 48,
-    available: 52,
-  },
-  {
-    id: "3",
-    name: "Day Pass",
-    price: 25,
-    status: "draft",
-    sold: 0,
-    available: 500,
-  },
-  {
-    id: "4",
-    name: "Season Pass",
-    price: 120,
-    status: "active",
-    sold: 89,
-    available: 111,
-  },
-  {
-    id: "5",
-    name: "Group Admission",
-    price: 50,
-    status: "sold-out",
-    sold: 200,
-    available: 0,
-  },
-];
+  const tenant = getTenantClient(org);
 
-const statusVariant: Record<MockTicket["status"], "default" | "secondary" | "destructive"> = {
-  active: "default",
-  draft: "secondary",
-  "sold-out": "destructive",
-};
+  const { data } = await tenant
+    .from("ticket_types")
+    .select("*")
+    .neq("status", "archived")
+    .order("created_at", { ascending: false });
 
-const statusLabel: Record<MockTicket["status"], string> = {
-  active: "Active",
-  draft: "Draft",
-  "sold-out": "Sold Out",
-};
+  const tickets = (data ?? []) as TicketType[];
 
-export default function TicketsListPage() {
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Tickets</h2>
-        <Button size="sm">Add Ticket</Button>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {tickets.map((ticket) => (
-          <Card key={ticket.id}>
-            <CardHeader className="flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-base font-medium">
-                {ticket.name}
-              </CardTitle>
-              <Badge variant={statusVariant[ticket.status]}>
-                {statusLabel[ticket.status]}
-              </Badge>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">
-                ${ticket.price.toFixed(2)}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                {ticket.sold} sold &middot; {ticket.available} available
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-    </div>
-  );
+  return <TicketsList orgSlug={orgSlug} tickets={tickets} />;
 }

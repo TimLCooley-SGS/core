@@ -24,7 +24,7 @@ import type {
   MembershipPlanStatus,
 } from "@sgscore/types/tenant";
 import { CardPreview } from "./card-preview";
-import { ImageCropper } from "./image-cropper";
+import { ImageCropper } from "@/components/image-cropper";
 import {
   createCardDesign,
   updateCardDesign,
@@ -622,6 +622,10 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
             setCropperSrc(null);
           }}
           onCropComplete={handleCropComplete}
+          aspect={3.375 / 2.125}
+          outputWidth={675}
+          fileName="card-front.png"
+          title="Crop Card Image"
         />
       )}
     </div>

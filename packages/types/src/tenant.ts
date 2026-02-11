@@ -342,3 +342,77 @@ export interface PortalQuestion {
   created_at: string;
   updated_at: string;
 }
+
+// Tickets
+
+export type TicketMode = 'timed_entry' | 'daily_admission';
+export type TicketStatus = 'draft' | 'active' | 'archived';
+export type PricingMode = 'flat' | 'semi_dynamic' | 'full_dynamic';
+export type PurchaseWindow = '2_weeks' | '30_days' | '60_days' | '90_days' | 'none';
+
+export interface SellingChannels {
+  in_person_counter: boolean;
+  in_person_kiosk: boolean;
+  online: boolean;
+}
+
+export interface DeliveryFormats {
+  email: boolean;
+  google_wallet: boolean;
+  apple_wallet: boolean;
+}
+
+export interface EmailSettings {
+  post_purchase: boolean;
+  reminder_1day: boolean;
+  reminder_1hour: boolean;
+  day_after: boolean;
+}
+
+export interface DayPrices {
+  mon: number | null;
+  tue: number | null;
+  wed: number | null;
+  thu: number | null;
+  fri: number | null;
+  sat: number | null;
+  sun: number | null;
+}
+
+export interface TicketType {
+  id: string;
+  name: string;
+  description: string | null;
+  ticket_mode: TicketMode;
+  location_id: string | null;
+  tags: string[];
+  banner_image_url: string | null;
+  square_image_url: string | null;
+  include_terms: boolean;
+  pricing_mode: PricingMode;
+  guest_allowance: number;
+  purchase_window: PurchaseWindow;
+  timed_interval_minutes: number | null;
+  entry_window_minutes: number | null;
+  selling_channels: SellingChannels;
+  delivery_formats: DeliveryFormats;
+  email_settings: EmailSettings;
+  status: TicketStatus;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TicketPriceType {
+  id: string;
+  ticket_type_id: string;
+  name: string;
+  price_cents: number | null;
+  day_prices: DayPrices | null;
+  target_price_cents: number | null;
+  tax_rate: number;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}

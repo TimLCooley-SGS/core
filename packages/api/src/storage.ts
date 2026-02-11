@@ -303,3 +303,119 @@ export async function deleteModuleThumbnail(
     }
   }
 }
+
+// ---------------------------------------------------------------------------
+// Ticket Storage Helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Uploads a banner image for a ticket type.
+ * Stores at `org-assets/{orgId}/tickets/{ticketId}/banner.{ext}`.
+ */
+export async function uploadTicketBannerImage(
+  orgId: string,
+  ticketId: string,
+  file: File,
+): Promise<string> {
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    throw new Error("Invalid file type. Allowed: PNG, JPG, WebP, SVG.");
+  }
+  if (file.size > MAX_SIZE) {
+    throw new Error("File too large. Maximum size is 2 MB.");
+  }
+
+  const cp = getControlPlaneClient();
+  await ensureOrgAssetsBucket();
+  await deleteTicketBannerImage(orgId, ticketId);
+
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "png";
+  const path = `${orgId}/tickets/${ticketId}/banner.${ext}`;
+
+  const { error } = await cp.storage.from(BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: true,
+  });
+
+  if (error) throw new Error(`Upload failed: ${error.message}`);
+
+  const {
+    data: { publicUrl },
+  } = cp.storage.from(BUCKET).getPublicUrl(path);
+
+  return publicUrl;
+}
+
+/**
+ * Removes the banner image for a ticket type.
+ */
+export async function deleteTicketBannerImage(
+  orgId: string,
+  ticketId: string,
+): Promise<void> {
+  const cp = getControlPlaneClient();
+  const folder = `${orgId}/tickets/${ticketId}`;
+  const { data: files } = await cp.storage.from(BUCKET).list(folder);
+  if (files && files.length > 0) {
+    const bannerFiles = files.filter((f) => f.name.startsWith("banner."));
+    if (bannerFiles.length > 0) {
+      const paths = bannerFiles.map((f) => `${folder}/${f.name}`);
+      await cp.storage.from(BUCKET).remove(paths);
+    }
+  }
+}
+
+/**
+ * Uploads a square image for a ticket type.
+ * Stores at `org-assets/{orgId}/tickets/{ticketId}/square.{ext}`.
+ */
+export async function uploadTicketSquareImage(
+  orgId: string,
+  ticketId: string,
+  file: File,
+): Promise<string> {
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    throw new Error("Invalid file type. Allowed: PNG, JPG, WebP, SVG.");
+  }
+  if (file.size > MAX_SIZE) {
+    throw new Error("File too large. Maximum size is 2 MB.");
+  }
+
+  const cp = getControlPlaneClient();
+  await ensureOrgAssetsBucket();
+  await deleteTicketSquareImage(orgId, ticketId);
+
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "png";
+  const path = `${orgId}/tickets/${ticketId}/square.${ext}`;
+
+  const { error } = await cp.storage.from(BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: true,
+  });
+
+  if (error) throw new Error(`Upload failed: ${error.message}`);
+
+  const {
+    data: { publicUrl },
+  } = cp.storage.from(BUCKET).getPublicUrl(path);
+
+  return publicUrl;
+}
+
+/**
+ * Removes the square image for a ticket type.
+ */
+export async function deleteTicketSquareImage(
+  orgId: string,
+  ticketId: string,
+): Promise<void> {
+  const cp = getControlPlaneClient();
+  const folder = `${orgId}/tickets/${ticketId}`;
+  const { data: files } = await cp.storage.from(BUCKET).list(folder);
+  if (files && files.length > 0) {
+    const squareFiles = files.filter((f) => f.name.startsWith("square."));
+    if (squareFiles.length > 0) {
+      const paths = squareFiles.map((f) => `${folder}/${f.name}`);
+      await cp.storage.from(BUCKET).remove(paths);
+    }
+  }
+}

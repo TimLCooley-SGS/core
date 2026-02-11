@@ -57,4 +57,8 @@ export {
   deleteModuleFile,
   uploadModuleThumbnail,
   deleteModuleThumbnail,
+  uploadTicketBannerImage,
+  deleteTicketBannerImage,
+  uploadTicketSquareImage,
+  deleteTicketSquareImage,
 } from "./storage";
