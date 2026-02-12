@@ -339,6 +339,7 @@ export async function getEmailFolders(
   const { data: folders } = await tenant
     .from("email_template_folders")
     .select("id, name, is_system")
+    .eq("is_system", false)
     .order("name");
 
   if (!folders || folders.length === 0) return [];
