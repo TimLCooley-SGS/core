@@ -27,6 +27,7 @@ interface ContactDetailProps {
   auditLog: AuditLogRow[];
   personTags: PersonTagRow[];
   allTags: TagRow[];
+  activeMembership: { planName: string; endsAt: string } | null;
 }
 
 export function ContactDetail({
@@ -40,6 +41,7 @@ export function ContactDetail({
   auditLog,
   personTags,
   allTags,
+  activeMembership,
 }: ContactDetailProps) {
   const router = useRouter();
 
@@ -58,6 +60,7 @@ export function ContactDetail({
             householdPeers={householdPeers}
             personTags={personTags}
             allTags={allTags}
+            activeMembership={activeMembership}
           />
         </aside>
         <div className="flex-1 min-w-0">

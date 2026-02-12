@@ -10,10 +10,14 @@ interface NavItem {
   segment: string;
 }
 
-const items: NavItem[] = [
+const mainItems: NavItem[] = [
   { label: "General", segment: "general" },
   { label: "Locations", segment: "location" },
   { label: "Team", segment: "team" },
+];
+
+const systemItems: NavItem[] = [
+  { label: "Emails", segment: "system/emails" },
 ];
 
 export function SettingsNav() {
@@ -21,27 +25,35 @@ export function SettingsNav() {
   const { org } = useOrg();
   const basePath = `/org/${org.slug}/settings`;
 
+  function renderItem(item: NavItem) {
+    const href = `${basePath}/${item.segment}`;
+    const isActive = pathname.startsWith(href);
+
+    return (
+      <Link
+        key={item.segment}
+        href={href}
+        className={cn(
+          "block rounded-md px-3 py-2 text-sm font-medium transition-colors",
+          isActive
+            ? "bg-accent text-accent-foreground"
+            : "text-muted-foreground hover:bg-muted hover:text-foreground",
+        )}
+      >
+        {item.label}
+      </Link>
+    );
+  }
+
   return (
     <nav className="space-y-1">
-      {items.map((item) => {
-        const href = `${basePath}/${item.segment}`;
-        const isActive = pathname.startsWith(href);
-
-        return (
-          <Link
-            key={item.segment}
-            href={href}
-            className={cn(
-              "block rounded-md px-3 py-2 text-sm font-medium transition-colors",
-              isActive
-                ? "bg-accent text-accent-foreground"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground",
-            )}
-          >
-            {item.label}
-          </Link>
-        );
-      })}
+      {mainItems.map(renderItem)}
+      <div className="pt-3 pb-1">
+        <span className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">
+          System
+        </span>
+      </div>
+      {systemItems.map(renderItem)}
     </nav>
   );
 }

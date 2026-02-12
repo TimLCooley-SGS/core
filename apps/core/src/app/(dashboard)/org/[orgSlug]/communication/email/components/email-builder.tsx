@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button, Input } from "@sgscore/ui";
-import { ArrowLeft, Eye, Save, Check, Loader2 } from "lucide-react";
+import { ArrowLeft, Eye, Save, Check, Loader2, Send } from "lucide-react";
 import type {
   EmailBlock,
   EmailBlockType,
@@ -17,6 +17,8 @@ import { BlockCanvas } from "./block-canvas";
 import { BlockEditor } from "./block-editor";
 import { EmailPreviewDialog } from "./email-preview-dialog";
 import { renderEmailHtml } from "./render-email-html";
+import { VariablePicker } from "./variable-picker";
+import { sendTestEmailAction } from "../test-email-action";
 
 // ---------------------------------------------------------------------------
 // Default blocks for new templates
@@ -408,6 +410,48 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
     router.push(`/org/${org.slug}/communication/email`);
   }, [router, org.slug]);
 
+  // Insert variable into the currently selected text/heading/button block
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState<string | null>(null);
+
+  const handleInsertVariable = useCallback(
+    (variableKey: string) => {
+      const tag = `{{${variableKey}}}`;
+      if (!selectedBlock) {
+        alert("Select a text, heading, or button block first to insert a variable.");
+        return;
+      }
+      const blockType = selectedBlock.type;
+      if (blockType === "text") {
+        const p = selectedBlock.props as import("@sgscore/types").TextBlockProps;
+        updateBlockProps(selectedBlock.id, { ...p, html: p.html + tag });
+      } else if (blockType === "heading") {
+        const p = selectedBlock.props as import("@sgscore/types").HeadingBlockProps;
+        updateBlockProps(selectedBlock.id, { ...p, text: p.text + tag });
+      } else if (blockType === "button") {
+        const p = selectedBlock.props as import("@sgscore/types").ButtonBlockProps;
+        updateBlockProps(selectedBlock.id, { ...p, text: p.text + tag });
+      } else {
+        alert("Variables can only be inserted into text, heading, or button blocks.");
+      }
+    },
+    [selectedBlock, updateBlockProps],
+  );
+
+  const handleSendTest = useCallback(async () => {
+    if (!templateId) {
+      alert("Save the template first before sending a test.");
+      return;
+    }
+    setTestSending(true);
+    setTestResult(null);
+    const result = await sendTestEmailAction(org.slug, templateId);
+    setTestResult(result.error ?? "Test email sent!");
+    setTestSending(false);
+    // Clear message after 5s
+    setTimeout(() => setTestResult(null), 5000);
+  }, [templateId, org.slug]);
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background">
       {/* Top bar */}
@@ -456,6 +500,13 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
           {!isSaving && isDirty && (
             <span className="text-xs text-amber-600">Unsaved changes</span>
           )}
+          {testResult && (
+            <span className={`text-xs ${testResult.startsWith("Test") ? "text-green-600" : "text-destructive"}`}>
+              {testResult}
+            </span>
+          )}
+
+          <VariablePicker onInsert={handleInsertVariable} />
 
           <Button
             variant="outline"
@@ -465,6 +516,21 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
           >
             <Eye className="h-4 w-4" />
             Preview
+          </Button>
+
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={handleSendTest}
+            disabled={testSending || !templateId}
+          >
+            {testSending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Send className="h-4 w-4" />
+            )}
+            Send Test
           </Button>
 
           <Button
@@ -504,6 +570,7 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
           onUpdateSettings={(partial) =>
             setSettings((prev) => ({ ...prev, ...partial }))
           }
+          onInsertVariable={handleInsertVariable}
         />
       </div>
 

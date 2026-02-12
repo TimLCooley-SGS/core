@@ -14,6 +14,8 @@ export interface Organization {
   supabase_url: string | null;
   supabase_anon_key: string | null;
   supabase_service_key: string | null;
+  database_url: string | null;
+  from_email: string | null;
   status: OrgStatus;
   plan_tier: string | null;
   stripe_connect_account_id: string | null;

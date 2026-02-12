@@ -178,6 +178,12 @@ export default async function PersonDetailPage({
     householdPeers = (peersData ?? []) as unknown as HouseholdMemberRow[];
   }
 
+  // Derive active membership from seats
+  const activeSeat = seats.find((s) => s.membership.status === "active");
+  const activeMembership = activeSeat
+    ? { planName: activeSeat.membership.plan.name, endsAt: activeSeat.membership.ends_at }
+    : null;
+
   return (
     <ContactDetail
       orgSlug={orgSlug}
@@ -190,6 +196,7 @@ export default async function PersonDetailPage({
       auditLog={auditLog}
       personTags={personTags}
       allTags={allTags}
+      activeMembership={activeMembership}
     />
   );
 }

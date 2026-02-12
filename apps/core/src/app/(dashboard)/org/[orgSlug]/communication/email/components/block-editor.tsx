@@ -1,7 +1,8 @@
 "use client";
 
 import { Input, Label, Button } from "@sgscore/ui";
-import { AlignLeft, AlignCenter, AlignRight, Plus, Trash2 } from "lucide-react";
+import { AlignLeft, AlignCenter, AlignRight, Plus, Trash2, Braces } from "lucide-react";
+import { VariablePicker } from "./variable-picker";
 import type {
   EmailBlock,
   EmailBlockProps,
@@ -23,6 +24,7 @@ interface BlockEditorProps {
   settings: EmailTemplateSettings;
   onUpdateBlock: (props: EmailBlockProps) => void;
   onUpdateSettings: (settings: Partial<EmailTemplateSettings>) => void;
+  onInsertVariable?: (variableKey: string) => void;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
@@ -195,13 +197,20 @@ function HeaderEditor({
 function HeadingEditor({
   props,
   onUpdate,
+  onInsertVariable,
 }: {
   props: HeadingBlockProps;
   onUpdate: (p: HeadingBlockProps) => void;
+  onInsertVariable?: (key: string) => void;
 }) {
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold">Heading</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Heading</h3>
+        {onInsertVariable && (
+          <VariablePicker onInsert={onInsertVariable} />
+        )}
+      </div>
       <Field label="Text">
         <Input
           value={props.text || ""}
@@ -235,13 +244,20 @@ function HeadingEditor({
 function TextEditor({
   props,
   onUpdate,
+  onInsertVariable,
 }: {
   props: TextBlockProps;
   onUpdate: (p: TextBlockProps) => void;
+  onInsertVariable?: (key: string) => void;
 }) {
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold">Text</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Text</h3>
+        {onInsertVariable && (
+          <VariablePicker onInsert={onInsertVariable} />
+        )}
+      </div>
       <p className="text-xs text-muted-foreground">
         Edit text directly on the canvas.
       </p>
@@ -313,13 +329,20 @@ function ImageEditor({
 function ButtonEditor({
   props,
   onUpdate,
+  onInsertVariable,
 }: {
   props: ButtonBlockProps;
   onUpdate: (p: ButtonBlockProps) => void;
+  onInsertVariable?: (key: string) => void;
 }) {
   return (
     <div className="space-y-4">
-      <h3 className="text-sm font-semibold">Button</h3>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-semibold">Button</h3>
+        {onInsertVariable && (
+          <VariablePicker onInsert={onInsertVariable} />
+        )}
+      </div>
       <Field label="Button Text">
         <Input
           value={props.text || ""}
@@ -652,6 +675,7 @@ export function BlockEditor({
   settings,
   onUpdateBlock,
   onUpdateSettings,
+  onInsertVariable,
 }: BlockEditorProps) {
   if (!block) {
     return (
@@ -667,16 +691,16 @@ export function BlockEditor({
         <HeaderEditor props={block.props as HeaderBlockProps} onUpdate={onUpdateBlock} />
       )}
       {block.type === "heading" && (
-        <HeadingEditor props={block.props as HeadingBlockProps} onUpdate={onUpdateBlock} />
+        <HeadingEditor props={block.props as HeadingBlockProps} onUpdate={onUpdateBlock} onInsertVariable={onInsertVariable} />
       )}
       {block.type === "text" && (
-        <TextEditor props={block.props as TextBlockProps} onUpdate={onUpdateBlock} />
+        <TextEditor props={block.props as TextBlockProps} onUpdate={onUpdateBlock} onInsertVariable={onInsertVariable} />
       )}
       {block.type === "image" && (
         <ImageEditor props={block.props as ImageBlockProps} onUpdate={onUpdateBlock} />
       )}
       {block.type === "button" && (
-        <ButtonEditor props={block.props as ButtonBlockProps} onUpdate={onUpdateBlock} />
+        <ButtonEditor props={block.props as ButtonBlockProps} onUpdate={onUpdateBlock} onInsertVariable={onInsertVariable} />
       )}
       {block.type === "divider" && (
         <DividerEditor props={block.props as DividerBlockProps} onUpdate={onUpdateBlock} />

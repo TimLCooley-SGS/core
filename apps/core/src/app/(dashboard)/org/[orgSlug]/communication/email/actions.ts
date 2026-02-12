@@ -108,6 +108,7 @@ export async function getEmailTemplates(
     .from("email_templates")
     .select("id, name, subject, folder_id, updated_at, is_system")
     .neq("status", "archived")
+    .eq("is_system", false)
     .order("updated_at", { ascending: false });
 
   return (data ?? []) as EmailTemplateOverview[];

@@ -28,6 +28,7 @@ interface ContactSidebarProps {
   householdPeers: HouseholdMemberRow[];
   personTags: PersonTagRow[];
   allTags: TagRow[];
+  activeMembership: { planName: string; endsAt: string } | null;
 }
 
 function getInitials(first: string, last: string): string {
@@ -289,6 +290,7 @@ export function ContactSidebar({
   householdPeers,
   personTags,
   allTags,
+  activeMembership,
 }: ContactSidebarProps) {
   const canEdit = useHasCapability("people.update");
 
@@ -404,6 +406,27 @@ export function ContactSidebar({
             allTags={allTags}
             canEdit={canEdit}
           />
+        </Collapsible>
+
+        {/* Membership */}
+        <Collapsible title="Membership" defaultOpen>
+          <div className="pb-3">
+            {activeMembership ? (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary" className="bg-green-100 text-green-800 text-xs">
+                    Active
+                  </Badge>
+                  <span className="text-sm font-medium">{activeMembership.planName}</span>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Expires {new Date(activeMembership.endsAt).toLocaleDateString()}
+                </p>
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">No active membership</p>
+            )}
+          </div>
         </Collapsible>
 
         {/* Relationships */}

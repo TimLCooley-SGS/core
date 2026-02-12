@@ -4,6 +4,7 @@ import type {
   MembershipWelcomeParams,
   TicketConfirmationParams,
 } from "@sgscore/types/email";
+import { replaceWithSampleData } from "@sgscore/types";
 
 // ---------------------------------------------------------------------------
 // Initialization
@@ -35,6 +36,7 @@ interface SendEmailOptions {
   subject: string;
   html: string;
   text?: string;
+  fromEmail?: string;
 }
 
 export async function sendEmail(options: SendEmailOptions): Promise<void> {
@@ -42,7 +44,7 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
   try {
     await sgMail.send({
       to: options.to,
-      from: getFromEmail(),
+      from: options.fromEmail ?? getFromEmail(),
       subject: options.subject,
       html: options.html,
       ...(options.text ? { text: options.text } : {}),
@@ -64,6 +66,26 @@ export async function sendEmail(options: SendEmailOptions): Promise<void> {
     const status = sgErr.response?.statusCode ? ` (${sgErr.response.statusCode})` : "";
     throw new Error(details ? `${details}${status}` : (err instanceof Error ? err.message : "SendGrid error"));
   }
+}
+
+// ---------------------------------------------------------------------------
+// Test email
+// ---------------------------------------------------------------------------
+
+export async function sendTestEmail(
+  html: string,
+  subject: string,
+  recipientEmail: string,
+  fromEmail?: string,
+): Promise<void> {
+  const processedHtml = replaceWithSampleData(html);
+  const processedSubject = replaceWithSampleData(subject);
+  await sendEmail({
+    to: recipientEmail,
+    subject: `[Test] ${processedSubject}`,
+    html: processedHtml,
+    fromEmail,
+  });
 }
 
 // ---------------------------------------------------------------------------
