@@ -42,6 +42,7 @@ export function ImageCropper({
 }: ImageCropperProps) {
   const finalHeight = outputHeight ?? Math.round(outputWidth / aspect);
 
+  const isFreeAspect = aspect === undefined;
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
@@ -59,11 +60,27 @@ export function ImageCropper({
     setProcessing(true);
 
     try {
+      let w = outputWidth;
+      let h = finalHeight;
+
+      // For free aspect, compute output dimensions from the crop's actual ratio
+      if (isFreeAspect && croppedAreaPixels.width > 0 && croppedAreaPixels.height > 0) {
+        const cropAspect = croppedAreaPixels.width / croppedAreaPixels.height;
+        const maxDim = 800;
+        if (cropAspect >= 1) {
+          w = maxDim;
+          h = Math.round(maxDim / cropAspect);
+        } else {
+          h = maxDim;
+          w = Math.round(maxDim * cropAspect);
+        }
+      }
+
       const file = await cropAndResize(
         imageSrc,
         croppedAreaPixels,
-        outputWidth,
-        finalHeight,
+        w,
+        h,
         fileName,
       );
       onCropComplete(file);
@@ -80,8 +97,10 @@ export function ImageCropper({
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>
-            Drag to reposition. Scroll or use the slider to zoom. The image will
-            be resized to {outputWidth}x{finalHeight}px.
+            Drag to reposition. Scroll or use the slider to zoom.
+            {isFreeAspect
+              ? " The image will be resized to fit within 800px."
+              : ` The image will be resized to ${outputWidth}x${finalHeight}px.`}
           </DialogDescription>
         </DialogHeader>
 
@@ -90,10 +109,14 @@ export function ImageCropper({
             image={imageSrc}
             crop={crop}
             zoom={zoom}
+            minZoom={0.1}
+            maxZoom={3}
             aspect={aspect}
             onCropChange={setCrop}
             onZoomChange={setZoom}
             onCropComplete={onCropChange}
+            objectFit="contain"
+            restrictPosition={false}
           />
         </div>
 
@@ -101,7 +124,7 @@ export function ImageCropper({
           <span className="text-xs text-muted-foreground whitespace-nowrap">Zoom</span>
           <input
             type="range"
-            min={1}
+            min={0.1}
             max={3}
             step={0.05}
             value={zoom}

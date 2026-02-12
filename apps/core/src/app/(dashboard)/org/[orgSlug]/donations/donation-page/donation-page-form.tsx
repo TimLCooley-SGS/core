@@ -12,8 +12,9 @@ import {
   Switch,
   Textarea,
 } from "@sgscore/ui";
-import { Loader2, Plus, X } from "lucide-react";
+import { ExternalLink, Loader2, Plus, X } from "lucide-react";
 import type { DonationPageConfig } from "@sgscore/types";
+import { useOrg } from "@/components/org-provider";
 import { updateDonationPageConfig } from "./actions";
 
 interface DonationPageFormProps {
@@ -25,8 +26,10 @@ export function DonationPageForm({
   orgSlug,
   initialConfig,
 }: DonationPageFormProps) {
+  const { org } = useOrg();
   const [config, setConfig] = useState<DonationPageConfig>(initialConfig);
   const [newDenom, setNewDenom] = useState("");
+  const publicUrl = `https://${org.slug}.sgscore.com/donations`;
   const [state, formAction, isPending] = useActionState(
     updateDonationPageConfig,
     {},
@@ -62,6 +65,20 @@ export function DonationPageForm({
     <form action={formAction} className="space-y-6">
       <input type="hidden" name="orgSlug" value={orgSlug} />
       <input type="hidden" name="config" value={JSON.stringify(config)} />
+
+      {/* Public page link */}
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">Public page:</span>
+        <a
+          href={publicUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1 text-primary hover:underline"
+        >
+          {publicUrl}
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      </div>
 
       {/* Enable / Disable */}
       <Card>
@@ -196,42 +213,6 @@ export function DonationPageForm({
               onCheckedChange={(v) => update("allowCustomAmount", v)}
             />
           </div>
-          {config.allowCustomAmount && (
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="min">Minimum ($)</Label>
-                <Input
-                  id="min"
-                  type="number"
-                  step="0.01"
-                  min="1"
-                  value={(config.minimumCents / 100).toFixed(2)}
-                  onChange={(e) =>
-                    update(
-                      "minimumCents",
-                      Math.round(parseFloat(e.target.value || "0") * 100),
-                    )
-                  }
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="max">Maximum ($)</Label>
-                <Input
-                  id="max"
-                  type="number"
-                  step="0.01"
-                  min="1"
-                  value={(config.maximumCents / 100).toFixed(2)}
-                  onChange={(e) =>
-                    update(
-                      "maximumCents",
-                      Math.round(parseFloat(e.target.value || "0") * 100),
-                    )
-                  }
-                />
-              </div>
-            </div>
-          )}
         </CardContent>
       </Card>
 

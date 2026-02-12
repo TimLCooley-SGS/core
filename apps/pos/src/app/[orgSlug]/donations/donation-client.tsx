@@ -29,10 +29,7 @@ export function DonationPageClient({ config }: DonationPageClientProps) {
     if (isCustom) {
       const dollars = parseFloat(customAmount);
       if (isNaN(dollars) || dollars <= 0) return null;
-      const cents = Math.round(dollars * 100);
-      if (cents < config.minimumCents || cents > config.maximumCents)
-        return null;
-      return cents;
+      return Math.round(dollars * 100);
     }
     return selectedCents;
   }
@@ -107,8 +104,7 @@ export function DonationPageClient({ config }: DonationPageClientProps) {
                   id="customAmount"
                   type="number"
                   step="0.01"
-                  min={(config.minimumCents / 100).toFixed(2)}
-                  max={(config.maximumCents / 100).toFixed(2)}
+                  min="0.01"
                   value={customAmount}
                   onChange={(e) => {
                     setCustomAmount(e.target.value);
@@ -120,14 +116,10 @@ export function DonationPageClient({ config }: DonationPageClientProps) {
                     setSelectedCents(null);
                   }}
                   className="pl-7"
-                  placeholder={`${(config.minimumCents / 100).toFixed(2)} – ${(config.maximumCents / 100).toFixed(2)}`}
+                  placeholder="Enter amount"
                 />
               </div>
             </div>
-            <p className="text-xs text-muted-foreground">
-              Min ${(config.minimumCents / 100).toFixed(2)} — Max $
-              {(config.maximumCents / 100).toFixed(2)}
-            </p>
           </div>
         )}
 

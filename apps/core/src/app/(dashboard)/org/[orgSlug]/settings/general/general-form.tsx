@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@sgscore/ui";
-import { ChevronUp, ChevronDown } from "lucide-react";
+import { ChevronUp, ChevronDown, Eye } from "lucide-react";
 import { useHasCapability } from "@/components/org-provider";
 import { ImageCropper } from "@/components/image-cropper";
 import type { OrgBranding, PosNavItem, LogoVariant } from "@sgscore/types";
@@ -82,9 +82,9 @@ const LOGO_SLOTS: LogoSlotConfig[] = [
     label: "Primary Logo",
     brandingKey: "logoUrl",
     aspect: 0, // free aspect
-    outputWidth: 400,
-    outputHeight: 400,
-    hint: "Free aspect",
+    outputWidth: 800,
+    outputHeight: 0,
+    hint: "Any aspect ratio",
   },
   {
     variant: "wide",
@@ -138,23 +138,24 @@ function IdentitySection({
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Org name */}
-        <form action={nameAction} className="flex items-end gap-3">
+        <form action={nameAction} className="space-y-2">
           <input type="hidden" name="orgSlug" value={orgSlug} />
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="name">Organization Name</Label>
+          <Label htmlFor="name">Organization Name</Label>
+          <div className="flex items-center gap-3">
             <Input
               id="name"
               name="name"
               defaultValue={orgName}
               disabled={!canEdit}
               required
+              className="flex-1"
             />
+            {canEdit && (
+              <Button type="submit" size="sm" disabled={namePending}>
+                {namePending ? "Saving..." : "Save"}
+              </Button>
+            )}
           </div>
-          {canEdit && (
-            <Button type="submit" size="sm" disabled={namePending}>
-              {namePending ? "Saving..." : "Save"}
-            </Button>
-          )}
           {nameState.error && (
             <p className="text-xs text-destructive">{nameState.error}</p>
           )}
@@ -555,7 +556,7 @@ function PosNavigationSection({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>POS Navigation</CardTitle>
+        <CardTitle>Navigation Menu</CardTitle>
       </CardHeader>
       <CardContent>
         <form action={action} className="space-y-4">
@@ -586,6 +587,16 @@ function PosNavigationSection({
                 <span className="text-xs text-muted-foreground">
                   /{item.key}
                 </span>
+                <a
+                  href={`https://${orgSlug}.sgscore.com/${item.key}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`View /${item.key}`}
+                >
+                  <Button type="button" variant="ghost" size="sm" tabIndex={-1}>
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                </a>
                 <Button
                   type="button"
                   variant="ghost"
@@ -612,12 +623,12 @@ function PosNavigationSection({
             <p className="text-sm text-destructive">{state.error}</p>
           )}
           {state.success && (
-            <p className="text-sm text-green-600">Navigation updated.</p>
+            <p className="text-sm text-green-600">Menu updated.</p>
           )}
 
           {canEdit && (
             <Button type="submit" size="sm" disabled={pending}>
-              {pending ? "Saving..." : "Save Navigation"}
+              {pending ? "Saving..." : "Save Menu"}
             </Button>
           )}
         </form>

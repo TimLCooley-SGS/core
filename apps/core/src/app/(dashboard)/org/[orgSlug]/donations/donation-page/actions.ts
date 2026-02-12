@@ -95,10 +95,6 @@ export async function updateDonationPageConfig(
       throw new Error("Title is required");
     if (!Array.isArray(config.denominations))
       throw new Error("Invalid denominations");
-    if (typeof config.minimumCents !== "number" || config.minimumCents < 100)
-      throw new Error("Minimum must be at least $1.00");
-    if (typeof config.maximumCents !== "number" || config.maximumCents < config.minimumCents)
-      throw new Error("Maximum must be greater than minimum");
   } catch (err) {
     return {
       error:
