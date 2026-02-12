@@ -81,36 +81,34 @@ function SortableBlock({
         onSelect();
       }}
     >
-      {/* Drag handle */}
+      {/* Hover toolbar — inside the block, top-right */}
       {!isFooter && (
-        <div
-          className="absolute -left-10 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing z-10"
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-5 w-5 text-muted-foreground" />
+        <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+          <div
+            className="p-1 rounded bg-background/80 backdrop-blur-sm border shadow-sm cursor-grab active:cursor-grabbing"
+            {...attributes}
+            {...listeners}
+          >
+            <GripVertical className="h-4 w-4 text-muted-foreground" />
+          </div>
+          <TooltipProvider delayDuration={200}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove();
+                  }}
+                  className="p-1 rounded bg-background/80 backdrop-blur-sm border shadow-sm text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </TooltipTrigger>
+              <TooltipContent>Delete block</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         </div>
-      )}
-
-      {/* Delete button */}
-      {!isFooter && (
-        <TooltipProvider delayDuration={200}>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onRemove();
-                }}
-                className="absolute -right-10 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive z-10"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            </TooltipTrigger>
-            <TooltipContent>Delete block</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
       )}
 
       {/* Block content */}
@@ -185,8 +183,6 @@ export function BlockCanvas({
   const footerIndex = blocks.findIndex((b) => b.type === "footer");
   const sortableBlocks = footerIndex >= 0 ? blocks.slice(0, footerIndex) : blocks;
   const footerBlock = footerIndex >= 0 ? blocks[footerIndex] : null;
-
-  const [insertIndex, setInsertIndex] = useState<number | null>(null);
 
   return (
     <div

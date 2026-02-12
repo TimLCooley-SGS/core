@@ -244,16 +244,31 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
 
   // Auto-save (edit mode only, debounced 3s)
   const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const savedRef = useRef(templateId ? JSON.stringify({ blocks, settings, name, subject, preheader }) : "");
+  const isMounted = useRef(false);
+  const savedSnapshot = useRef("");
+
+  // Set the initial snapshot once on mount to avoid saving immediately
+  useEffect(() => {
+    if (templateId && !isMounted.current) {
+      savedSnapshot.current = JSON.stringify({ blocks, settings, name, subject, preheader });
+      isMounted.current = true;
+    }
+  });// eslint-disable-line react-hooks/exhaustive-deps — intentionally runs once
 
   useEffect(() => {
-    if (!templateId) return;
+    if (!templateId || !isMounted.current) return;
     const current = JSON.stringify({ blocks, settings, name, subject, preheader });
-    if (current === savedRef.current) return;
+    if (current === savedSnapshot.current) {
+      // State matches what was last saved — no action needed
+      if (saveStatus === "unsaved") setSaveStatus("saved");
+      return;
+    }
 
     setSaveStatus("unsaved");
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
+      // Re-check — state may have changed while the timer was running
+      const snapshot = JSON.stringify({ blocks, settings, name, subject, preheader });
       setSaveStatus("saving");
       const html = renderEmailHtml(blocks, settings, preheader);
       const result = await updateEmailTemplate(org.slug, templateId, {
@@ -265,7 +280,7 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
         html_content: html,
       });
       if (!result.error) {
-        savedRef.current = current;
+        savedSnapshot.current = snapshot;
         setSaveStatus("saved");
       } else {
         setSaveStatus("unsaved");
@@ -273,7 +288,7 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
     }, 3000);
 
     return () => clearTimeout(saveTimerRef.current);
-  }, [blocks, settings, name, subject, preheader, templateId, org.slug]);
+  }, [blocks, settings, name, subject, preheader, templateId, org.slug]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Warn on navigate away with unsaved changes
   useEffect(() => {
@@ -382,7 +397,7 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
         html_content: html,
       });
       if (!result.error) {
-        savedRef.current = JSON.stringify({ blocks, settings, name, subject, preheader });
+        savedSnapshot.current = JSON.stringify({ blocks, settings, name, subject, preheader });
         setSaveStatus("saved");
       } else {
         setSaveStatus("unsaved");

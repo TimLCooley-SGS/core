@@ -208,7 +208,8 @@ export async function updateEmailTemplate(
     .eq("id", templateId);
 
   if (error) return { error: error.message };
-  revalidatePath(`/org/${orgSlug}/communication/email`);
+  // Don't revalidatePath here — the builder manages its own state client-side.
+  // List page revalidation happens on create/delete/duplicate instead.
   return {};
 }
 
