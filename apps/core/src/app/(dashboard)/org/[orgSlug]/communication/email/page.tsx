@@ -1,4 +1,4 @@
-import { getEmailTemplates } from "./actions";
+import { getEmailTemplates, getEmailFolders, getSendableLists } from "./actions";
 import { EmailTemplatesList } from "./components/email-templates-list";
 
 export default async function EmailPage({
@@ -7,7 +7,11 @@ export default async function EmailPage({
   params: Promise<{ orgSlug: string }>;
 }) {
   const { orgSlug } = await params;
-  const templates = await getEmailTemplates(orgSlug);
+  const [templates, folders, lists] = await Promise.all([
+    getEmailTemplates(orgSlug),
+    getEmailFolders(orgSlug),
+    getSendableLists(orgSlug),
+  ]);
 
-  return <EmailTemplatesList templates={templates} />;
+  return <EmailTemplatesList templates={templates} folders={folders} lists={lists} />;
 }
