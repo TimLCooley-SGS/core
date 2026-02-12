@@ -31,13 +31,15 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
+  // Use getSession() for a fast local JWT check (no network round-trip).
+  // Actual auth verification via getUser() happens in server components.
   const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    data: { session },
+  } = await supabase.auth.getSession();
 
   // Unauthenticated users trying to access protected routes → redirect to login
   if (
-    !user &&
+    !session &&
     !request.nextUrl.pathname.startsWith("/login") &&
     !request.nextUrl.pathname.startsWith("/auth")
   ) {
