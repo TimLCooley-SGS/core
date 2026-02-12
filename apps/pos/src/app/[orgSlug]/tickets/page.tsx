@@ -22,9 +22,7 @@ export default async function TicketsPage({
     .eq("status", "active")
     .order("name");
 
-  const activeTickets = ((tickets ?? []) as TicketType[]).filter(
-    (t) => t.selling_channels?.online,
-  );
+  const activeTickets = (tickets ?? []) as TicketType[];
 
   if (activeTickets.length === 0) {
     return (
