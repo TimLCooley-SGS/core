@@ -13,7 +13,7 @@ import {
 import type { PortalSettings } from "@sgscore/types/tenant";
 import { TiptapEditor } from "./tiptap-editor";
 import { DesignerPreview } from "./designer-preview";
-import { ImageCropper } from "../cards/image-cropper";
+import { ImageCropper } from "@/components/image-cropper";
 import {
   upsertPortalSettings,
   uploadPortalHeroImage,
