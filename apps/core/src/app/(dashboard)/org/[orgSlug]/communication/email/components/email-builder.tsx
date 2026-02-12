@@ -171,10 +171,20 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
     initialData?.settings?.fontFamily ? initialData.settings : { ...DEFAULT_SETTINGS },
   );
   const [selectedBlockId, setSelectedBlockId] = useState<string | null>(null);
-  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved" | "idle">(
-    templateId ? "saved" : "idle",
-  );
+  const [isSaving, setIsSaving] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+
+  // Auto-save: snapshot tracking via ref (no re-render on dirty change)
+  const savedSnapshotRef = useRef("");
+  const snapshotInitRef = useRef(false);
+  if (templateId && !snapshotInitRef.current) {
+    // Runs during first render — state vars are already initialized above
+    savedSnapshotRef.current = JSON.stringify({ blocks, settings, name, subject, preheader });
+    snapshotInitRef.current = true;
+  }
+  // Derived dirty flag — compared every render but never stored in state
+  const currentSnapshot = JSON.stringify({ blocks, settings, name, subject, preheader });
+  const isDirty = Boolean(templateId) && currentSnapshot !== savedSnapshotRef.current;
 
   // History for undo/redo
   const [history, setHistory] = useState<BuilderState[]>([]);
@@ -242,34 +252,13 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [history, historyIndex]);
 
-  // Auto-save (edit mode only, debounced 3s)
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const isMounted = useRef(false);
-  const savedSnapshot = useRef("");
-
-  // Set the initial snapshot once on mount to avoid saving immediately
+  // Auto-save: debounced 3s, only in edit mode
   useEffect(() => {
-    if (templateId && !isMounted.current) {
-      savedSnapshot.current = JSON.stringify({ blocks, settings, name, subject, preheader });
-      isMounted.current = true;
-    }
-  });// eslint-disable-line react-hooks/exhaustive-deps — intentionally runs once
+    if (!templateId || !isDirty || isSaving) return;
 
-  useEffect(() => {
-    if (!templateId || !isMounted.current) return;
-    const current = JSON.stringify({ blocks, settings, name, subject, preheader });
-    if (current === savedSnapshot.current) {
-      // State matches what was last saved — no action needed
-      if (saveStatus === "unsaved") setSaveStatus("saved");
-      return;
-    }
-
-    setSaveStatus("unsaved");
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(async () => {
-      // Re-check — state may have changed while the timer was running
+    const timer = setTimeout(async () => {
+      setIsSaving(true);
       const snapshot = JSON.stringify({ blocks, settings, name, subject, preheader });
-      setSaveStatus("saving");
       const html = renderEmailHtml(blocks, settings, preheader);
       const result = await updateEmailTemplate(org.slug, templateId, {
         name,
@@ -280,26 +269,24 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
         html_content: html,
       });
       if (!result.error) {
-        savedSnapshot.current = snapshot;
-        setSaveStatus("saved");
-      } else {
-        setSaveStatus("unsaved");
+        savedSnapshotRef.current = snapshot;
       }
+      setIsSaving(false);
     }, 3000);
 
-    return () => clearTimeout(saveTimerRef.current);
-  }, [blocks, settings, name, subject, preheader, templateId, org.slug]); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => clearTimeout(timer);
+  }, [blocks, settings, name, subject, preheader, templateId, org.slug, isDirty, isSaving]);
 
   // Warn on navigate away with unsaved changes
   useEffect(() => {
     function handleBeforeUnload(e: BeforeUnloadEvent) {
-      if (saveStatus === "unsaved") {
+      if (isDirty) {
         e.preventDefault();
       }
     }
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [saveStatus]);
+  }, [isDirty]);
 
   // Block operations
   const addBlock = useCallback(
@@ -384,7 +371,7 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
 
   // Save handler (for new templates or manual save)
   const handleSave = useCallback(async () => {
-    setSaveStatus("saving");
+    setIsSaving(true);
     const html = renderEmailHtml(blocks, settings, preheader);
 
     if (templateId) {
@@ -397,10 +384,7 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
         html_content: html,
       });
       if (!result.error) {
-        savedSnapshot.current = JSON.stringify({ blocks, settings, name, subject, preheader });
-        setSaveStatus("saved");
-      } else {
-        setSaveStatus("unsaved");
+        savedSnapshotRef.current = JSON.stringify({ blocks, settings, name, subject, preheader });
       }
     } else {
       const result = await createEmailTemplate(org.slug, {
@@ -415,6 +399,7 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
         router.replace(`/org/${org.slug}/communication/email/${result.id}`);
       }
     }
+    setIsSaving(false);
   }, [blocks, settings, name, subject, preheader, templateId, org.slug, router]);
 
   const selectedBlock = blocks.find((b) => b.id === selectedBlockId) ?? null;
@@ -456,19 +441,19 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
 
         <div className="flex items-center gap-2">
           {/* Save status */}
-          {saveStatus === "saving" && (
+          {isSaving && (
             <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <Loader2 className="h-3 w-3 animate-spin" />
               Saving...
             </span>
           )}
-          {saveStatus === "saved" && (
+          {!isSaving && !isDirty && templateId && (
             <span className="flex items-center gap-1 text-xs text-green-600">
               <Check className="h-3 w-3" />
               Saved
             </span>
           )}
-          {saveStatus === "unsaved" && (
+          {!isSaving && isDirty && (
             <span className="text-xs text-amber-600">Unsaved changes</span>
           )}
 
@@ -486,7 +471,7 @@ export function EmailBuilder({ templateId, initialData }: EmailBuilderProps) {
             size="sm"
             className="gap-1.5"
             onClick={handleSave}
-            disabled={saveStatus === "saving"}
+            disabled={isSaving}
           >
             <Save className="h-4 w-4" />
             {templateId ? "Save" : "Create"}
