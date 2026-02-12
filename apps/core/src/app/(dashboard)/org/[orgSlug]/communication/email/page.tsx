@@ -1,8 +1,13 @@
-export default function EmailPage() {
-  return (
-    <div>
-      <h2 className="text-xl font-semibold">Email</h2>
-      <p className="mt-2 text-muted-foreground">Coming soon.</p>
-    </div>
-  );
+import { getEmailTemplates } from "./actions";
+import { EmailTemplatesList } from "./components/email-templates-list";
+
+export default async function EmailPage({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>;
+}) {
+  const { orgSlug } = await params;
+  const templates = await getEmailTemplates(orgSlug);
+
+  return <EmailTemplatesList templates={templates} />;
 }
