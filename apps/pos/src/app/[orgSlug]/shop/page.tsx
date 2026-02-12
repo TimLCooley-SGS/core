@@ -1,33 +1,10 @@
+import { notFound } from "next/navigation";
+import { getOrgBySlug, getTenantClient } from "@sgscore/api";
 import { Button, Card, CardContent, CardHeader, CardTitle } from "@sgscore/ui";
 import Link from "next/link";
 import { Ticket, Calendar, Users, Heart } from "lucide-react";
-
-const CATEGORIES = [
-  {
-    key: "tickets",
-    label: "Tickets",
-    description: "Purchase admission tickets for your visit.",
-    icon: Ticket,
-  },
-  {
-    key: "events",
-    label: "Events",
-    description: "Discover upcoming events and book your spot.",
-    icon: Calendar,
-  },
-  {
-    key: "memberships",
-    label: "Memberships",
-    description: "Become a member and enjoy exclusive benefits.",
-    icon: Users,
-  },
-  {
-    key: "donations",
-    label: "Donations",
-    description: "Support our mission with a donation.",
-    icon: Heart,
-  },
-];
+import type { PosNavItem, DonationPageConfig } from "@sgscore/types";
+import { DEFAULT_POS_NAV, DEFAULT_DONATION_PAGE_CONFIG } from "@sgscore/types";
 
 export default async function ShopPage({
   params,
@@ -35,12 +12,79 @@ export default async function ShopPage({
   params: Promise<{ orgSlug: string }>;
 }) {
   const { orgSlug } = await params;
+  const org = await getOrgBySlug(orgSlug);
+  if (!org) notFound();
+
+  const settings = (org.settings ?? {}) as Record<string, unknown>;
+  const posNavigation =
+    (settings.posNavigation as PosNavItem[] | undefined) ?? DEFAULT_POS_NAV;
+  const donationConfig: DonationPageConfig = {
+    ...DEFAULT_DONATION_PAGE_CONFIG,
+    ...(settings.donationPage as Partial<DonationPageConfig> | undefined),
+  };
+
+  const tenant = getTenantClient(org);
+
+  const [ticketRes, planRes] = await Promise.all([
+    tenant
+      .from("ticket_types")
+      .select("id", { count: "exact" })
+      .eq("status", "active"),
+    tenant
+      .from("membership_plans")
+      .select("id", { count: "exact" })
+      .eq("status", "active"),
+  ]);
+
+  const ticketCount = ticketRes.count ?? 0;
+  const planCount = planRes.count ?? 0;
+
+  const visibleKeys = new Set(
+    posNavigation.filter((n) => n.visible).map((n) => n.key),
+  );
+
+  const categories = [
+    {
+      key: "tickets",
+      label: "Tickets",
+      description:
+        ticketCount > 0
+          ? `${ticketCount} ticket${ticketCount === 1 ? "" : "s"} available`
+          : "No tickets available yet",
+      icon: Ticket,
+    },
+    {
+      key: "events",
+      label: "Events",
+      description: "Coming Soon",
+      icon: Calendar,
+    },
+    {
+      key: "memberships",
+      label: "Memberships",
+      description:
+        planCount > 0
+          ? `${planCount} membership plan${planCount === 1 ? "" : "s"}`
+          : "No plans available yet",
+      icon: Users,
+    },
+    {
+      key: "donations",
+      label: "Donations",
+      description: donationConfig.enabled
+        ? "Donations are open"
+        : "Coming Soon",
+      icon: Heart,
+    },
+  ];
+
+  const visibleCategories = categories.filter((c) => visibleKeys.has(c.key));
 
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-heading font-bold">Shop</h1>
       <div className="grid gap-6 sm:grid-cols-2">
-        {CATEGORIES.map((cat) => {
+        {visibleCategories.map((cat) => {
           const Icon = cat.icon;
           return (
             <Card key={cat.key}>

@@ -14,8 +14,8 @@ export default async function AccountPage() {
   const profile = await getAccountProfile();
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold">Personal Settings</h1>
+    <div className="space-y-4">
+      <h1 className="text-lg font-semibold">Personal Settings</h1>
       <AccountForm
         displayName={profile.displayName}
         email={profile.email}

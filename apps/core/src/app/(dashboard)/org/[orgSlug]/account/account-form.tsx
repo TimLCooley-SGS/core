@@ -75,13 +75,13 @@ export function AccountForm({
   }
 
   return (
-    <div className="max-w-2xl">
+    <div className="max-w-xl">
       <Card>
-        <CardContent className="pt-6">
-          <div className="flex gap-6">
+        <CardContent className="p-4">
+          <div className="flex gap-4">
             {/* Left: Avatar */}
-            <div className="flex flex-col items-center gap-2">
-              <Avatar className="h-20 w-20 text-xl">
+            <div className="flex flex-col items-center gap-1.5">
+              <Avatar className="h-14 w-14 text-base">
                 {avatarUrl && (
                   <AvatarImage src={avatarUrl} alt="Profile photo" />
                 )}
@@ -100,6 +100,7 @@ export function AccountForm({
                 type="button"
                 variant="outline"
                 size="sm"
+                className="h-7 text-xs px-2"
                 disabled={isUploading}
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -110,36 +111,31 @@ export function AccountForm({
                   type="button"
                   variant="ghost"
                   size="sm"
+                  className="h-7 text-xs px-2"
                   disabled={isRemoving}
                   onClick={handleRemove}
                 >
                   {isRemoving ? "Removing..." : "Remove"}
                 </Button>
               )}
-              {uploadState.error && (
-                <p className="text-xs text-destructive">{uploadState.error}</p>
-              )}
-              {uploadState.success && (
-                <p className="text-xs text-green-600">{uploadState.success}</p>
-              )}
-              {removeState.error && (
-                <p className="text-xs text-destructive">{removeState.error}</p>
-              )}
-              {removeState.success && (
-                <p className="text-xs text-green-600">{removeState.success}</p>
+              {(uploadState.error || removeState.error) && (
+                <p className="text-xs text-destructive">
+                  {uploadState.error || removeState.error}
+                </p>
               )}
             </div>
 
             {/* Right: Name + Email */}
-            <div className="flex-1 space-y-4">
-              <form action={nameAction} className="flex items-end gap-3">
-                <div className="flex-1 space-y-1.5">
-                  <Label htmlFor="displayName">Display Name</Label>
+            <div className="flex-1 space-y-3">
+              <form action={nameAction} className="flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="displayName" className="text-xs">Display Name</Label>
                   <Input
                     id="displayName"
                     name="displayName"
                     defaultValue={displayName}
                     required
+                    className="h-8 text-sm"
                   />
                   {nameState.error && (
                     <p className="text-xs text-destructive">
@@ -152,20 +148,21 @@ export function AccountForm({
                     </p>
                   )}
                 </div>
-                <Button type="submit" size="sm" disabled={namePending}>
+                <Button type="submit" size="sm" className="h-8" disabled={namePending}>
                   {namePending ? "Saving..." : "Save"}
                 </Button>
               </form>
 
-              <form action={emailAction} className="flex items-end gap-3">
-                <div className="flex-1 space-y-1.5">
-                  <Label htmlFor="email">Email</Label>
+              <form action={emailAction} className="flex items-end gap-2">
+                <div className="flex-1 space-y-1">
+                  <Label htmlFor="email" className="text-xs">Email</Label>
                   <Input
                     id="email"
                     name="email"
                     type="email"
                     defaultValue={email}
                     required
+                    className="h-8 text-sm"
                   />
                   <p className="text-xs text-muted-foreground">
                     Changing your email requires verification.
@@ -181,7 +178,7 @@ export function AccountForm({
                     </p>
                   )}
                 </div>
-                <Button type="submit" size="sm" disabled={emailPending}>
+                <Button type="submit" size="sm" className="h-8" disabled={emailPending}>
                   {emailPending ? "Saving..." : "Save"}
                 </Button>
               </form>
