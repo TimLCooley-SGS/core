@@ -39,6 +39,7 @@ import {
   Filter,
   Check,
   Loader2,
+  Lock,
 } from "lucide-react";
 import { useOrg } from "@/components/org-provider";
 import type { EmailTemplateOverview, EmailFolder, SendableList } from "../actions";
@@ -217,8 +218,8 @@ export function EmailTemplatesList({
             <Copy className="h-4 w-4 mr-2" />
             Duplicate
           </DropdownMenuItem>
-          {/* Move to folder submenu */}
-          {folders.length > 0 && (
+          {/* Move to folder submenu — hidden for system templates */}
+          {!template.is_system && folders.length > 0 && (
             <>
               <DropdownMenuSeparator />
               {template.folder_id && (
@@ -248,17 +249,21 @@ export function EmailTemplatesList({
                 ))}
             </>
           )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={(e) => {
-              e.stopPropagation();
-              handleDelete(template.id);
-            }}
-            className="text-destructive"
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete
-          </DropdownMenuItem>
+          {!template.is_system && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleDelete(template.id);
+                }}
+                className="text-destructive"
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     );
@@ -342,7 +347,9 @@ export function EmailTemplatesList({
                     : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 }`}
               >
-                {activeFolder === folder.id ? (
+                {folder.is_system ? (
+                  <Lock className="h-4 w-4 shrink-0" />
+                ) : activeFolder === folder.id ? (
                   <FolderOpen className="h-4 w-4 shrink-0" />
                 ) : (
                   <Folder className="h-4 w-4 shrink-0" />
@@ -350,14 +357,16 @@ export function EmailTemplatesList({
                 <span className="flex-1 text-left truncate">{folder.name}</span>
                 <span className="text-xs tabular-nums">{folder.template_count}</span>
               </button>
-              <button
-                type="button"
-                onClick={() => handleDeleteFolder(folder.id)}
-                className="p-1 rounded opacity-0 group-hover/folder:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
-                disabled={pending}
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
+              {!folder.is_system && (
+                <button
+                  type="button"
+                  onClick={() => handleDeleteFolder(folder.id)}
+                  className="p-1 rounded opacity-0 group-hover/folder:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
+                  disabled={pending}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              )}
             </div>
           ))}
 

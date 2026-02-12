@@ -927,6 +927,17 @@ ALTER TABLE email_templates
 CREATE INDEX idx_email_templates_folder ON email_templates (folder_id);
 `,
   },
+  {
+    name: "018_add_system_email_flags.sql",
+    sql: `
+ALTER TABLE email_templates
+  ADD COLUMN is_system boolean NOT NULL DEFAULT false,
+  ADD COLUMN system_key text UNIQUE;
+
+ALTER TABLE email_template_folders
+  ADD COLUMN is_system boolean NOT NULL DEFAULT false;
+`,
+  },
 ];
 
 const SEEDS: { name: string; sql: string }[] = [
@@ -1056,6 +1067,16 @@ WHERE r.name = 'Volunteer'
     'people.read',
     'visits.read'
   );
+`,
+  },
+  {
+    name: "system-email-folder.sql",
+    sql: `
+INSERT INTO email_template_folders (name, is_system)
+SELECT 'System Emails', true
+WHERE NOT EXISTS (
+  SELECT 1 FROM email_template_folders WHERE name = 'System Emails' AND is_system = true
+);
 `,
   },
 ];

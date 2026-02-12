@@ -76,12 +76,14 @@ export interface EmailTemplateOverview {
   subject: string;
   folder_id: string | null;
   updated_at: string;
+  is_system: boolean;
 }
 
 export interface EmailFolder {
   id: string;
   name: string;
   template_count: number;
+  is_system: boolean;
 }
 
 export interface SendableList {
@@ -104,7 +106,7 @@ export async function getEmailTemplates(
   const tenant = getTenantClient(org);
   const { data } = await tenant
     .from("email_templates")
-    .select("id, name, subject, folder_id, updated_at")
+    .select("id, name, subject, folder_id, updated_at, is_system")
     .neq("status", "archived")
     .order("updated_at", { ascending: false });
 
@@ -239,6 +241,15 @@ export async function deleteEmailTemplate(
   if ("error" in auth) return { error: auth.error };
 
   const tenant = getTenantClient(auth.org);
+
+  // Check if system template
+  const { data: tpl } = await tenant
+    .from("email_templates")
+    .select("is_system")
+    .eq("id", templateId)
+    .single();
+  if (tpl?.is_system) return { error: "System templates cannot be deleted." };
+
   const { error } = await tenant
     .from("email_templates")
     .update({ status: "archived" })
@@ -294,6 +305,15 @@ export async function moveEmailTemplate(
   if ("error" in auth) return { error: auth.error };
 
   const tenant = getTenantClient(auth.org);
+
+  // Check if system template
+  const { data: tpl } = await tenant
+    .from("email_templates")
+    .select("is_system")
+    .eq("id", templateId)
+    .single();
+  if (tpl?.is_system) return { error: "System templates cannot be moved." };
+
   const { error } = await tenant
     .from("email_templates")
     .update({ folder_id: folderId })
@@ -317,7 +337,7 @@ export async function getEmailFolders(
   const tenant = getTenantClient(org);
   const { data: folders } = await tenant
     .from("email_template_folders")
-    .select("id, name")
+    .select("id, name, is_system")
     .order("name");
 
   if (!folders || folders.length === 0) return [];
@@ -338,6 +358,7 @@ export async function getEmailFolders(
     id: f.id as string,
     name: f.name as string,
     template_count: counts.get(f.id as string) ?? 0,
+    is_system: (f.is_system as boolean) ?? false,
   }));
 }
 
@@ -368,6 +389,15 @@ export async function deleteEmailFolder(
   if ("error" in auth) return { error: auth.error };
 
   const tenant = getTenantClient(auth.org);
+
+  // Check if system folder
+  const { data: folder } = await tenant
+    .from("email_template_folders")
+    .select("is_system")
+    .eq("id", folderId)
+    .single();
+  if (folder?.is_system) return { error: "System folders cannot be deleted." };
+
   // Templates in this folder get folder_id set to NULL (ON DELETE SET NULL)
   const { error } = await tenant
     .from("email_template_folders")
