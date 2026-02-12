@@ -10,6 +10,7 @@ export function generateThemeCSS(branding?: Partial<OrgBranding>): string {
   const accent = branding?.accentColor ?? "#9B59B6";
   const headingFont = branding?.headingFont ?? "system-ui, sans-serif";
   const bodyFont = branding?.bodyFont ?? "system-ui, sans-serif";
+  const borderRadius = branding?.borderRadius ?? "0.5rem";
 
   return `
     --color-primary: ${primary};
@@ -21,5 +22,6 @@ export function generateThemeCSS(branding?: Partial<OrgBranding>): string {
     --color-ring: ${primary};
     --font-heading: ${headingFont};
     --font-body: ${bodyFont};
+    --radius: ${borderRadius};
   `.trim();
 }

@@ -8,8 +8,6 @@ import {
   Button,
   Card,
   CardContent,
-  CardHeader,
-  CardTitle,
   Input,
   Label,
 } from "@sgscore/ui";
@@ -32,34 +30,21 @@ export function AccountForm({
   email,
   avatarUrl,
 }: AccountFormProps) {
-  return (
-    <div className="max-w-2xl space-y-6">
-      <AvatarSection displayName={displayName} avatarUrl={avatarUrl} />
-      <DisplayNameSection displayName={displayName} />
-      <EmailSection email={email} />
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Profile Photo
-// ---------------------------------------------------------------------------
-
-function AvatarSection({
-  displayName,
-  avatarUrl,
-}: {
-  displayName: string;
-  avatarUrl: string | null;
-}) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadState, uploadAction] = useActionState(uploadAvatarAction, {});
   const [removeState, removeAction] = useActionState(removeAvatarAction, {});
   const [isUploading, startUpload] = useTransition();
   const [isRemoving, startRemove] = useTransition();
-
-  // Cropper state
   const [cropSrc, setCropSrc] = useState<string | null>(null);
+
+  const [nameState, nameAction, namePending] = useActionState(
+    updateDisplayName,
+    {},
+  );
+  const [emailState, emailAction, emailPending] = useActionState(
+    updateEmail,
+    {},
+  );
 
   const initials = (displayName || "?")
     .split(/\s+/)
@@ -71,93 +56,136 @@ function AvatarSection({
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    // Read file into data URL for cropper
     const reader = new FileReader();
-    reader.onload = () => {
-      setCropSrc(reader.result as string);
-    };
+    reader.onload = () => setCropSrc(reader.result as string);
     reader.readAsDataURL(file);
-
-    // Reset the input so the same file can be re-selected
     e.target.value = "";
   }
 
   function handleCropComplete(croppedFile: File) {
     setCropSrc(null);
-
     const formData = new FormData();
     formData.append("file", croppedFile);
-
-    startUpload(() => {
-      uploadAction(formData);
-    });
+    startUpload(() => uploadAction(formData));
   }
 
   function handleRemove() {
     const formData = new FormData();
-    startRemove(() => {
-      removeAction(formData);
-    });
+    startRemove(() => removeAction(formData));
   }
 
   return (
-    <>
+    <div className="max-w-2xl">
       <Card>
-        <CardHeader>
-          <CardTitle>Profile Photo</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <Avatar className="h-24 w-24 text-2xl">
-            {avatarUrl && <AvatarImage src={avatarUrl} alt="Profile photo" />}
-            <AvatarFallback className="bg-primary text-primary-foreground">
-              {initials}
-            </AvatarFallback>
-          </Avatar>
-
-          <p className="text-sm text-muted-foreground">
-            Square image, 256&times;256px output. Max 2 MB. PNG, JPG, or WebP.
-          </p>
-
-          {uploadState.error && (
-            <p className="text-sm text-destructive">{uploadState.error}</p>
-          )}
-          {uploadState.success && (
-            <p className="text-sm text-green-600">{uploadState.success}</p>
-          )}
-          {removeState.error && (
-            <p className="text-sm text-destructive">{removeState.error}</p>
-          )}
-          {removeState.success && (
-            <p className="text-sm text-green-600">{removeState.success}</p>
-          )}
-
-          <div className="flex gap-3">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              className="hidden"
-              onChange={handleFileSelect}
-            />
-            <Button
-              type="button"
-              variant="outline"
-              disabled={isUploading}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              {isUploading ? "Uploading..." : "Upload Photo"}
-            </Button>
-            {avatarUrl && (
+        <CardContent className="pt-6">
+          <div className="flex gap-6">
+            {/* Left: Avatar */}
+            <div className="flex flex-col items-center gap-2">
+              <Avatar className="h-20 w-20 text-xl">
+                {avatarUrl && (
+                  <AvatarImage src={avatarUrl} alt="Profile photo" />
+                )}
+                <AvatarFallback className="bg-primary text-primary-foreground">
+                  {initials}
+                </AvatarFallback>
+              </Avatar>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                className="hidden"
+                onChange={handleFileSelect}
+              />
               <Button
                 type="button"
                 variant="outline"
-                disabled={isRemoving}
-                onClick={handleRemove}
+                size="sm"
+                disabled={isUploading}
+                onClick={() => fileInputRef.current?.click()}
               >
-                {isRemoving ? "Removing..." : "Remove Photo"}
+                {isUploading ? "Uploading..." : "Upload"}
               </Button>
-            )}
+              {avatarUrl && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={isRemoving}
+                  onClick={handleRemove}
+                >
+                  {isRemoving ? "Removing..." : "Remove"}
+                </Button>
+              )}
+              {uploadState.error && (
+                <p className="text-xs text-destructive">{uploadState.error}</p>
+              )}
+              {uploadState.success && (
+                <p className="text-xs text-green-600">{uploadState.success}</p>
+              )}
+              {removeState.error && (
+                <p className="text-xs text-destructive">{removeState.error}</p>
+              )}
+              {removeState.success && (
+                <p className="text-xs text-green-600">{removeState.success}</p>
+              )}
+            </div>
+
+            {/* Right: Name + Email */}
+            <div className="flex-1 space-y-4">
+              <form action={nameAction} className="flex items-end gap-3">
+                <div className="flex-1 space-y-1.5">
+                  <Label htmlFor="displayName">Display Name</Label>
+                  <Input
+                    id="displayName"
+                    name="displayName"
+                    defaultValue={displayName}
+                    required
+                  />
+                  {nameState.error && (
+                    <p className="text-xs text-destructive">
+                      {nameState.error}
+                    </p>
+                  )}
+                  {nameState.success && (
+                    <p className="text-xs text-green-600">
+                      {nameState.success}
+                    </p>
+                  )}
+                </div>
+                <Button type="submit" size="sm" disabled={namePending}>
+                  {namePending ? "Saving..." : "Save"}
+                </Button>
+              </form>
+
+              <form action={emailAction} className="flex items-end gap-3">
+                <div className="flex-1 space-y-1.5">
+                  <Label htmlFor="email">Email</Label>
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    defaultValue={email}
+                    required
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Changing your email requires verification.
+                  </p>
+                  {emailState.error && (
+                    <p className="text-xs text-destructive">
+                      {emailState.error}
+                    </p>
+                  )}
+                  {emailState.success && (
+                    <p className="text-xs text-green-600">
+                      {emailState.success}
+                    </p>
+                  )}
+                </div>
+                <Button type="submit" size="sm" disabled={emailPending}>
+                  {emailPending ? "Saving..." : "Save"}
+                </Button>
+              </form>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -175,87 +203,6 @@ function AvatarSection({
           title="Crop Profile Photo"
         />
       )}
-    </>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Display Name
-// ---------------------------------------------------------------------------
-
-function DisplayNameSection({ displayName }: { displayName: string }) {
-  const [state, action, pending] = useActionState(updateDisplayName, {});
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Display Name</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form action={action} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="displayName">Name</Label>
-            <Input
-              id="displayName"
-              name="displayName"
-              defaultValue={displayName}
-              required
-            />
-          </div>
-          {state.error && (
-            <p className="text-sm text-destructive">{state.error}</p>
-          )}
-          {state.success && (
-            <p className="text-sm text-green-600">{state.success}</p>
-          )}
-          <Button type="submit" disabled={pending}>
-            {pending ? "Saving..." : "Save"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Email Address
-// ---------------------------------------------------------------------------
-
-function EmailSection({ email }: { email: string }) {
-  const [state, action, pending] = useActionState(updateEmail, {});
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Email Address</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <form action={action} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              name="email"
-              type="email"
-              defaultValue={email}
-              required
-            />
-            <p className="text-sm text-muted-foreground">
-              Changing your email requires verification. A confirmation link will
-              be sent to the new address.
-            </p>
-          </div>
-          {state.error && (
-            <p className="text-sm text-destructive">{state.error}</p>
-          )}
-          {state.success && (
-            <p className="text-sm text-green-600">{state.success}</p>
-          )}
-          <Button type="submit" disabled={pending}>
-            {pending ? "Saving..." : "Save"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
+    </div>
   );
 }

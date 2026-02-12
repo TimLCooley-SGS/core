@@ -1,7 +1,31 @@
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { getOrgBySlug } from "@sgscore/api";
-import type { OrgBranding } from "@sgscore/types";
+import type { OrgBranding, PosNavItem } from "@sgscore/types";
+import { DEFAULT_POS_NAV } from "@sgscore/types";
 import { generateThemeCSS } from "@/lib/theme";
+import { CartProvider } from "@/lib/cart-provider";
+import { PosHeader } from "@/components/pos-header";
+import { PosFooter } from "@/components/pos-footer";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>;
+}): Promise<Metadata> {
+  const { orgSlug } = await params;
+  const org = await getOrgBySlug(orgSlug);
+  if (!org) return {};
+
+  const branding = (org.settings?.branding ?? {}) as Partial<OrgBranding>;
+
+  return {
+    title: org.name,
+    ...(branding.faviconUrl && {
+      icons: { icon: branding.faviconUrl },
+    }),
+  };
+}
 
 export default async function OrgLayout({
   children,
@@ -15,41 +39,26 @@ export default async function OrgLayout({
 
   if (!org) notFound();
 
-  const branding = (org.settings?.branding ?? {}) as Partial<OrgBranding>;
+  const settings = (org.settings ?? {}) as Record<string, unknown>;
+  const branding = (settings.branding ?? {}) as Partial<OrgBranding>;
+  const posNavigation = (settings.posNavigation as PosNavItem[] | undefined) ?? DEFAULT_POS_NAV;
   const themeCSS = generateThemeCSS(branding);
 
   return (
-    <div>
-      <style dangerouslySetInnerHTML={{ __html: `:root { ${themeCSS} }` }} />
-      <header className="border-b bg-card">
-        <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4">
-          <div className="flex items-center gap-3">
-            {branding.logoUrl && (
-              <img
-                src={branding.logoUrl}
-                alt={`${org.name} logo`}
-                className="h-10 w-auto"
-              />
-            )}
-            <span className="text-xl font-heading font-bold">{org.name}</span>
-          </div>
-          <nav className="flex gap-6 text-sm font-medium">
-            <a href={`/${orgSlug}/tickets`} className="hover:text-primary">
-              Tickets
-            </a>
-            <a href={`/${orgSlug}/events`} className="hover:text-primary">
-              Events
-            </a>
-            <a href={`/${orgSlug}/memberships`} className="hover:text-primary">
-              Memberships
-            </a>
-          </nav>
-        </div>
-      </header>
-      <main className="mx-auto max-w-6xl px-4 py-8">{children}</main>
-      <footer className="border-t py-8 text-center text-sm text-muted-foreground">
-        Powered by SGS Core
-      </footer>
-    </div>
+    <CartProvider>
+      <div className="flex min-h-screen flex-col">
+        <style dangerouslySetInnerHTML={{ __html: `:root { ${themeCSS} }` }} />
+        <PosHeader
+          orgSlug={orgSlug}
+          orgName={org.name}
+          logoUrl={branding.logoUrl}
+          navItems={posNavigation}
+        />
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8">
+          {children}
+        </main>
+        <PosFooter orgName={org.name} />
+      </div>
+    </CartProvider>
   );
 }

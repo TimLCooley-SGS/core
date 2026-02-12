@@ -11,7 +11,7 @@ interface NavItem {
 }
 
 const mainItems: NavItem[] = [
-  { label: "General", segment: "general" },
+  { label: "Branding", segment: "general" },
   { label: "Locations", segment: "location" },
   { label: "Team", segment: "team" },
 ];

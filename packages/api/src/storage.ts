@@ -1,4 +1,6 @@
 import { getControlPlaneClient } from "./control-plane";
+import type { LogoVariant } from "@sgscore/types";
+import { LOGO_VARIANT_FILENAMES } from "@sgscore/types";
 
 const BUCKET = "org-assets";
 const MAX_SIZE = 2 * 1024 * 1024; // 2 MB
@@ -68,14 +70,69 @@ export async function uploadOrgLogo(
 }
 
 /**
- * Removes all files under `org-assets/{orgId}/`.
+ * Removes the primary logo files under `org-assets/{orgId}/`.
+ * Only deletes files starting with "logo." — not other variants or assets.
  */
 export async function deleteOrgLogo(orgId: string): Promise<void> {
+  await deleteOrgLogoVariant(orgId, "primary");
+}
+
+/**
+ * Uploads an org logo variant to `org-assets/{orgId}/{variantFilename}.{ext}`.
+ * Validates type and size. Deletes any previous file for that variant first.
+ * Returns the public URL of the uploaded file.
+ */
+export async function uploadOrgLogoVariant(
+  orgId: string,
+  variant: LogoVariant,
+  file: File,
+): Promise<string> {
+  if (!ALLOWED_TYPES.includes(file.type)) {
+    throw new Error("Invalid file type. Allowed: PNG, JPG, WebP, SVG.");
+  }
+  if (file.size > MAX_SIZE) {
+    throw new Error("File too large. Maximum size is 2 MB.");
+  }
+
   const cp = getControlPlaneClient();
+  await ensureOrgAssetsBucket();
+  await deleteOrgLogoVariant(orgId, variant);
+
+  const stem = LOGO_VARIANT_FILENAMES[variant];
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "png";
+  const path = `${orgId}/${stem}.${ext}`;
+
+  const { error } = await cp.storage.from(BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: true,
+  });
+
+  if (error) throw new Error(`Upload failed: ${error.message}`);
+
+  const {
+    data: { publicUrl },
+  } = cp.storage.from(BUCKET).getPublicUrl(path);
+
+  return publicUrl;
+}
+
+/**
+ * Removes files for a specific logo variant under `org-assets/{orgId}/`.
+ * Only deletes files whose name starts with the variant's filename stem.
+ */
+export async function deleteOrgLogoVariant(
+  orgId: string,
+  variant: LogoVariant,
+): Promise<void> {
+  const cp = getControlPlaneClient();
+  const stem = LOGO_VARIANT_FILENAMES[variant];
   const { data: files } = await cp.storage.from(BUCKET).list(orgId);
   if (files && files.length > 0) {
-    const paths = files.map((f) => `${orgId}/${f.name}`);
-    await cp.storage.from(BUCKET).remove(paths);
+    const variantFiles = files.filter((f) => f.name.startsWith(`${stem}.`));
+    if (variantFiles.length > 0) {
+      const paths = variantFiles.map((f) => `${orgId}/${f.name}`);
+      await cp.storage.from(BUCKET).remove(paths);
+    }
   }
 }
 

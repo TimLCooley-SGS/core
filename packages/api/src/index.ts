@@ -50,6 +50,8 @@ export {
   ensureOrgAssetsBucket,
   uploadOrgLogo,
   deleteOrgLogo,
+  uploadOrgLogoVariant,
+  deleteOrgLogoVariant,
   uploadCardImage,
   deleteCardImage,
   uploadPortalImage,
