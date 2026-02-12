@@ -62,4 +62,6 @@ export {
   deleteTicketBannerImage,
   uploadTicketSquareImage,
   deleteTicketSquareImage,
+  uploadUserAvatar,
+  deleteUserAvatar,
 } from "./storage";

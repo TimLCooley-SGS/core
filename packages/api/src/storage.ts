@@ -137,6 +137,62 @@ export async function deleteCardImage(
 }
 
 // ---------------------------------------------------------------------------
+// User Avatar Helpers
+// ---------------------------------------------------------------------------
+
+const AVATAR_ALLOWED_TYPES = ["image/png", "image/jpeg", "image/webp"];
+
+/**
+ * Uploads a user avatar to `org-assets/users/{userId}/avatar.{ext}`.
+ * Validates type (PNG, JPG, WebP) and size (2 MB max).
+ * Deletes any previous avatar first. Returns the public URL.
+ */
+export async function uploadUserAvatar(
+  userId: string,
+  file: File,
+): Promise<string> {
+  if (!AVATAR_ALLOWED_TYPES.includes(file.type)) {
+    throw new Error("Invalid file type. Allowed: PNG, JPG, WebP.");
+  }
+  if (file.size > MAX_SIZE) {
+    throw new Error("File too large. Maximum size is 2 MB.");
+  }
+
+  const cp = getControlPlaneClient();
+  await ensureOrgAssetsBucket();
+  await deleteUserAvatar(userId);
+
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "png";
+  const path = `users/${userId}/avatar.${ext}`;
+
+  const { error } = await cp.storage.from(BUCKET).upload(path, file, {
+    contentType: file.type,
+    upsert: true,
+  });
+
+  if (error) throw new Error(`Upload failed: ${error.message}`);
+
+  const {
+    data: { publicUrl },
+  } = cp.storage.from(BUCKET).getPublicUrl(path);
+
+  return publicUrl;
+}
+
+/**
+ * Removes all avatar files under `org-assets/users/{userId}/`.
+ */
+export async function deleteUserAvatar(userId: string): Promise<void> {
+  const cp = getControlPlaneClient();
+  const folder = `users/${userId}`;
+  const { data: files } = await cp.storage.from(BUCKET).list(folder);
+  if (files && files.length > 0) {
+    const paths = files.map((f) => `${folder}/${f.name}`);
+    await cp.storage.from(BUCKET).remove(paths);
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Portal Storage Helpers
 // ---------------------------------------------------------------------------
 

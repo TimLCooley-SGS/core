@@ -3,7 +3,13 @@
 import { useOrg } from "./org-provider";
 import { UserMenu } from "./user-menu";
 
-export function Topbar({ initials }: { initials: string }) {
+export function Topbar({
+  initials,
+  avatarUrl,
+}: {
+  initials: string;
+  avatarUrl?: string | null;
+}) {
   const { org } = useOrg();
 
   return (
@@ -14,6 +20,8 @@ export function Topbar({ initials }: { initials: string }) {
       <UserMenu
         initials={initials}
         orgName={org.name}
+        avatarUrl={avatarUrl}
+        accountHref={`/org/${org.slug}/account`}
         settingsHref={`/org/${org.slug}/settings`}
       />
     </header>

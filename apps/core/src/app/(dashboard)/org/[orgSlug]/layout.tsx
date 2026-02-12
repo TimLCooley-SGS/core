@@ -41,6 +41,15 @@ export default async function OrgLayout({
     .toUpperCase()
     .slice(0, 2);
 
+  // Fetch avatar URL from control plane
+  const cpForAvatar = getControlPlaneClient();
+  const { data: identity } = await cpForAvatar
+    .from("global_identities")
+    .select("avatar_url")
+    .eq("id", user.id)
+    .single();
+  const avatarUrl = (identity?.avatar_url as string) ?? null;
+
   // Resolve user's capabilities for this org
   const cp = getControlPlaneClient();
   const { data: link } = await cp
@@ -81,7 +90,7 @@ export default async function OrgLayout({
       <div className="flex h-screen">
         <Sidebar />
         <div className="flex flex-1 flex-col overflow-hidden">
-          <Topbar initials={initials} />
+          <Topbar initials={initials} avatarUrl={avatarUrl} />
           <main className="flex-1 overflow-y-auto p-6">{children}</main>
         </div>
       </div>
