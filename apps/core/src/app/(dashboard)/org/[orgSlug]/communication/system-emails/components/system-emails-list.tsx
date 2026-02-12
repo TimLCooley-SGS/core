@@ -12,6 +12,7 @@ import { sendTestEmailAction } from "../../email/test-email-action";
 interface SystemEmailsListProps {
   ticketTemplates: SystemEmailTemplate[];
   membershipTemplates: SystemEmailTemplate[];
+  donationTemplates: SystemEmailTemplate[];
   membershipRules: MembershipEmailRule[];
 }
 
@@ -72,6 +73,7 @@ function TemplateCard({ template }: { template: SystemEmailTemplate }) {
 export function SystemEmailsList({
   ticketTemplates,
   membershipTemplates,
+  donationTemplates,
   membershipRules,
 }: SystemEmailsListProps) {
   return (
@@ -107,6 +109,24 @@ export function SystemEmailsList({
           {membershipTemplates.length === 0 && (
             <p className="text-sm text-muted-foreground">
               No membership email templates found. Run the system email seed to create them.
+            </p>
+          )}
+        </div>
+      </section>
+
+      {/* Donation Emails */}
+      <section>
+        <div className="flex items-center gap-3 mb-4">
+          <h3 className="text-lg font-semibold">Donation Emails</h3>
+          <Badge variant="secondary">{donationTemplates.length}</Badge>
+        </div>
+        <div className="space-y-2">
+          {donationTemplates.map((t) => (
+            <TemplateCard key={t.id} template={t} />
+          ))}
+          {donationTemplates.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              No donation email templates found. Run the system email seed to create them.
             </p>
           )}
         </div>

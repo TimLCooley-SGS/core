@@ -88,9 +88,9 @@ export interface MembershipEmailRule {
 
 export async function getSystemEmailTemplates(
   orgSlug: string,
-): Promise<{ ticket: SystemEmailTemplate[]; membership: SystemEmailTemplate[] }> {
+): Promise<{ ticket: SystemEmailTemplate[]; membership: SystemEmailTemplate[]; donation: SystemEmailTemplate[] }> {
   const org = await getOrgBySlug(orgSlug);
-  if (!org) return { ticket: [], membership: [] };
+  if (!org) return { ticket: [], membership: [], donation: [] };
 
   const tenant = getTenantClient(org);
   const { data } = await tenant
@@ -103,8 +103,9 @@ export async function getSystemEmailTemplates(
 
   const ticket = templates.filter((t) => t.system_key.startsWith("ticket_"));
   const membership = templates.filter((t) => t.system_key.startsWith("membership_"));
+  const donation = templates.filter((t) => t.system_key.startsWith("donation_"));
 
-  return { ticket, membership };
+  return { ticket, membership, donation };
 }
 
 export async function getMembershipEmailRules(
