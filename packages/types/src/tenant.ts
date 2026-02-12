@@ -265,6 +265,8 @@ export interface MembershipCardDesign {
   is_default: boolean;
   card_options: MembershipCardOptions;
   restricted_plan_ids: string[] | null;
+  price_cents: number;
+  pos_visible: boolean;
   created_by: string | null;
   updated_by: string | null;
   created_at: string;

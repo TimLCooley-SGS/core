@@ -25,19 +25,20 @@ export default async function ShopPage({
 
   const tenant = getTenantClient(org);
 
-  const [ticketRes, planRes] = await Promise.all([
+  const [ticketRes, cardRes] = await Promise.all([
     tenant
       .from("ticket_types")
       .select("id", { count: "exact" })
       .eq("status", "active"),
     tenant
-      .from("membership_plans")
+      .from("membership_card_designs")
       .select("id", { count: "exact" })
-      .eq("status", "active"),
+      .eq("status", "active")
+      .eq("pos_visible", true),
   ]);
 
   const ticketCount = ticketRes.count ?? 0;
-  const planCount = planRes.count ?? 0;
+  const cardCount = cardRes.count ?? 0;
 
   const visibleKeys = new Set(
     posNavigation.filter((n) => n.visible).map((n) => n.key),
@@ -63,9 +64,9 @@ export default async function ShopPage({
       key: "memberships",
       label: "Memberships",
       description:
-        planCount > 0
-          ? `${planCount} membership plan${planCount === 1 ? "" : "s"}`
-          : "No plans available yet",
+        cardCount > 0
+          ? `${cardCount} membership${cardCount === 1 ? "" : "s"} available`
+          : "No memberships available yet",
       icon: Users,
     },
     {

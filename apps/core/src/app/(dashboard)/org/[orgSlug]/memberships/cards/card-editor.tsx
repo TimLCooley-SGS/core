@@ -98,6 +98,10 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
   const [options, setOptions] = useState<MembershipCardOptions>(
     card?.card_options ?? DEFAULT_OPTIONS,
   );
+  const [priceDollars, setPriceDollars] = useState(
+    card ? (card.price_cents / 100).toString() : "",
+  );
+  const [posVisible, setPosVisible] = useState(card?.pos_visible ?? false);
   const [restrictedPlanIds, setRestrictedPlanIds] = useState<Set<string>>(
     new Set(card?.restricted_plan_ids ?? []),
   );
@@ -234,6 +238,10 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
     fd.append("opt_apple_wallet", options.apple_wallet.toString());
     fd.append("opt_google_wallet", options.google_wallet.toString());
     fd.append("opt_push_notifications", options.push_notifications.toString());
+
+    const priceCents = priceDollars ? Math.round(parseFloat(priceDollars) * 100) : 0;
+    fd.append("priceCents", priceCents.toString());
+    fd.append("posVisible", posVisible.toString());
 
     const restricted = Array.from(restrictedPlanIds);
     fd.append("restrictedPlanIds", restricted.length > 0 ? JSON.stringify(restricted) : "");
@@ -522,6 +530,39 @@ export function CardEditor({ orgSlug, card, plans }: CardEditorProps) {
                     onCheckedChange={(checked) =>
                       setIsDefault(checked === true)
                     }
+                  />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Storefront */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Storefront</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="cardPrice">Price</Label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground text-sm">$</span>
+                    <Input
+                      id="cardPrice"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="pl-7"
+                      value={priceDollars}
+                      onChange={(e) => setPriceDollars(e.target.value)}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="posVisible">Visible on Storefront</Label>
+                  <Switch
+                    id="posVisible"
+                    checked={posVisible}
+                    onCheckedChange={(checked) => setPosVisible(checked === true)}
                   />
                 </div>
               </CardContent>

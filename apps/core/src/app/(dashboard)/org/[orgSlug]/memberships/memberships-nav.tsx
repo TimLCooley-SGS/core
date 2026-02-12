@@ -13,7 +13,6 @@ interface NavItem {
 const items: NavItem[] = [
   { label: "Membership Portal", segment: "portal" },
   { label: "Membership Cards", segment: "cards" },
-  { label: "Membership Plans", segment: "plans" },
 ];
 
 export function MembershipsNav() {

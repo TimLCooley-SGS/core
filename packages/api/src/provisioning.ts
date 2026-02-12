@@ -958,6 +958,14 @@ CREATE TRIGGER trg_membership_email_rules_updated_at
   BEFORE UPDATE ON membership_email_rules FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 `,
   },
+  {
+    name: "020_add_card_pricing.sql",
+    sql: `
+ALTER TABLE membership_card_designs
+  ADD COLUMN price_cents integer NOT NULL DEFAULT 0,
+  ADD COLUMN pos_visible boolean NOT NULL DEFAULT false;
+`,
+  },
 ];
 
 const SEEDS: { name: string; sql: string }[] = [

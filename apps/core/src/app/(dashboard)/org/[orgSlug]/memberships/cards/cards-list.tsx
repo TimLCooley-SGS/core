@@ -135,10 +135,20 @@ export function CardsList({ orgSlug, cards }: CardsListProps) {
                   >
                     {card.name}
                   </Link>
+                  {card.price_cents > 0 && (
+                    <p className="text-xs text-muted-foreground mt-0.5">
+                      ${(card.price_cents / 100).toFixed(2)}
+                    </p>
+                  )}
                   <div className="flex gap-1 mt-1">
                     {card.is_default && (
                       <Badge variant="secondary" className="text-xs">
                         Default
+                      </Badge>
+                    )}
+                    {card.pos_visible && (
+                      <Badge variant="outline" className="text-xs">
+                        Storefront
                       </Badge>
                     )}
                   </div>

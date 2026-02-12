@@ -63,6 +63,9 @@ export async function createCardDesign(
   const frontFields = parseFields(formData.get("frontFields") as string);
   const backFields = parseFields(formData.get("backFields") as string);
 
+  const priceCents = parseInt(formData.get("priceCents") as string, 10);
+  const posVisible = formData.get("posVisible") === "true";
+
   const cardData = {
     name,
     pdf_name: (formData.get("pdfName") as string)?.trim() || null,
@@ -81,6 +84,8 @@ export async function createCardDesign(
       push_notifications: formData.get("opt_push_notifications") === "true",
     },
     restricted_plan_ids: parseRestrictedPlans(formData.get("restrictedPlanIds") as string),
+    price_cents: isNaN(priceCents) ? 0 : priceCents,
+    pos_visible: posVisible,
     created_by: auth.tenantPersonId,
     updated_by: auth.tenantPersonId,
   };
@@ -146,6 +151,9 @@ export async function updateCardDesign(
   const frontFields = parseFields(formData.get("frontFields") as string);
   const backFields = parseFields(formData.get("backFields") as string);
 
+  const priceCents = parseInt(formData.get("priceCents") as string, 10);
+  const posVisible = formData.get("posVisible") === "true";
+
   const updates = {
     name,
     pdf_name: (formData.get("pdfName") as string)?.trim() || null,
@@ -164,6 +172,8 @@ export async function updateCardDesign(
       push_notifications: formData.get("opt_push_notifications") === "true",
     },
     restricted_plan_ids: parseRestrictedPlans(formData.get("restrictedPlanIds") as string),
+    price_cents: isNaN(priceCents) ? 0 : priceCents,
+    pos_visible: posVisible,
     updated_by: auth.tenantPersonId,
   };
 

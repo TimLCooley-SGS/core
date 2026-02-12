@@ -43,6 +43,12 @@ export default async function EditTicketPage({
     .select("*")
     .order("start_date");
 
+  const { data: sysTemplates } = await tenant
+    .from("email_templates")
+    .select("id, name, system_key")
+    .eq("is_system", true)
+    .like("system_key", "ticket_%");
+
   return (
     <div className="space-y-4">
       <h2 className="text-lg font-semibold">
@@ -54,6 +60,7 @@ export default async function EditTicketPage({
         blockedDates={(blockedData ?? []) as BlockedDate[]}
         ticket={ticket as TicketType}
         priceTypes={(priceData ?? []) as TicketPriceType[]}
+        systemEmailTemplates={(sysTemplates ?? []) as { system_key: string; id: string; name: string }[]}
       />
     </div>
   );

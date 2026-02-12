@@ -813,6 +813,53 @@ export async function removeTicketSquare(
 }
 
 // ---------------------------------------------------------------------------
+// Email Preview
+// ---------------------------------------------------------------------------
+
+interface EmailPreviewState {
+  html?: string;
+  subject?: string;
+  error?: string;
+}
+
+export async function getEmailPreviewHtml(
+  _prev: EmailPreviewState,
+  formData: FormData,
+): Promise<EmailPreviewState> {
+  const orgSlug = formData.get("orgSlug") as string;
+  const templateId = formData.get("templateId") as string;
+
+  if (!orgSlug) return { error: "Missing org slug." };
+  if (!templateId) return { error: "Missing template ID." };
+
+  const auth = await requireTicketManage(orgSlug);
+  if ("error" in auth) return { error: auth.error };
+
+  const org = await getOrgBySlug(orgSlug);
+  if (!org) return { error: "Organization not found." };
+
+  const tenant = getTenantClient(org);
+
+  const { data: template } = await tenant
+    .from("email_templates")
+    .select("name, subject, blocks, settings")
+    .eq("id", templateId)
+    .single();
+
+  if (!template) return { error: "Template not found." };
+
+  const { renderEmailHtml } = await import(
+    "@/app/(dashboard)/org/[orgSlug]/communication/email/components/render-email-html"
+  );
+
+  const blocks = (template.blocks ?? []) as Parameters<typeof renderEmailHtml>[0];
+  const settings = (template.settings ?? {}) as Parameters<typeof renderEmailHtml>[1];
+  const html = renderEmailHtml(blocks, settings);
+
+  return { html, subject: template.subject ?? template.name };
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 

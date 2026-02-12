@@ -14,7 +14,8 @@ import {
   Switch,
   cn,
 } from "@sgscore/ui";
-import { Check, ChevronDown, Plus, Trash2 } from "lucide-react";
+import Link from "next/link";
+import { Check, ChevronDown, Eye, Pencil, Plus, Trash2 } from "lucide-react";
 import type {
   TicketType,
   TicketPriceType,
@@ -36,7 +37,9 @@ import {
   removeTicketBanner,
   uploadTicketSquare,
   removeTicketSquare,
+  getEmailPreviewHtml,
 } from "./actions";
+import { EmailPreviewDialog } from "../../communication/email/components/email-preview-dialog";
 
 // ---------------------------------------------------------------------------
 // Accordion Step
@@ -163,12 +166,19 @@ function computeFees(basePrice: number) {
 // Props
 // ---------------------------------------------------------------------------
 
+interface SystemEmailTemplate {
+  system_key: string;
+  id: string;
+  name: string;
+}
+
 interface TicketEditorProps {
   orgSlug: string;
   locations: Location[];
   blockedDates: BlockedDate[];
   ticket?: TicketType;
   priceTypes?: TicketPriceType[];
+  systemEmailTemplates?: SystemEmailTemplate[];
 }
 
 const DEFAULT_SELLING: SellingChannels = {
@@ -204,12 +214,20 @@ const INTERVAL_PRESETS = [15, 30, 45, 60];
 // Component
 // ---------------------------------------------------------------------------
 
+const EMAIL_KEY_MAP: Record<string, string> = {
+  post_purchase: "ticket_post_purchase",
+  reminder_1day: "ticket_reminder_1day",
+  reminder_1hour: "ticket_reminder_1hour",
+  day_after: "ticket_day_after",
+};
+
 export function TicketEditor({
   orgSlug,
   locations,
   blockedDates,
   ticket,
   priceTypes: existingPriceTypes,
+  systemEmailTemplates = [],
 }: TicketEditorProps) {
   const router = useRouter();
   const isEdit = !!ticket;
@@ -330,6 +348,17 @@ export function TicketEditor({
   const [squareCropperOpen, setSquareCropperOpen] = useState(false);
   const [squareCropperSrc, setSquareCropperSrc] = useState<string | null>(null);
 
+  // Email preview
+  const [previewState, previewAction] = useActionState(getEmailPreviewHtml, {});
+  const [isLoadingPreview, startPreview] = useTransition();
+  const [previewOpen, setPreviewOpen] = useState(false);
+
+  // Build a lookup: toggle key -> template
+  const templateByKey = new Map<string, SystemEmailTemplate>();
+  for (const t of systemEmailTemplates) {
+    templateByKey.set(t.system_key, t);
+  }
+
   // Redirect on successful create
   useEffect(() => {
     if (state.success && state.ticketId && !isEdit) {
@@ -357,6 +386,13 @@ export function TicketEditor({
   useEffect(() => {
     if (squareRemoveState.success) setSquareImageUrl(null);
   }, [squareRemoveState.success]);
+
+  // Open preview dialog when HTML arrives
+  useEffect(() => {
+    if (previewState.html) {
+      setPreviewOpen(true);
+    }
+  }, [previewState.html]);
 
   // Auto-open step 5 and scroll to error on failure
   useEffect(() => {
@@ -474,6 +510,14 @@ export function TicketEditor({
       if (pendingSquarePreview) URL.revokeObjectURL(pendingSquarePreview);
       setPendingSquarePreview(null);
     }
+  }
+
+  // ─── Email Preview Helper ────────────────────────────────────────────
+  function handleEmailPreview(templateId: string) {
+    const fd = new FormData();
+    fd.append("orgSlug", orgSlug);
+    fd.append("templateId", templateId);
+    startPreview(() => previewAction(fd));
   }
 
   // ─── Price Row Helpers ───────────────────────────────────────────────
@@ -1232,12 +1276,43 @@ export function TicketEditor({
               ]
             ).map(({ key, label, timedOnly }) => {
               if (timedOnly && ticketMode !== "timed_entry") return null;
+              const systemKey = EMAIL_KEY_MAP[key];
+              const tmpl = systemKey ? templateByKey.get(systemKey) : undefined;
               return (
                 <div
                   key={key}
                   className="flex items-center justify-between rounded-md border px-3 py-2"
                 >
-                  <Label htmlFor={`email-${key}`}>{label}</Label>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <Label htmlFor={`email-${key}`} className="shrink-0">{label}</Label>
+                    {tmpl && (
+                      <div className="flex items-center gap-1 ml-auto mr-3">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          disabled={isLoadingPreview}
+                          onClick={() => handleEmailPreview(tmpl.id)}
+                        >
+                          <Eye className="h-3 w-3 mr-1" />
+                          Preview
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          asChild
+                        >
+                          <Link href={`/org/${orgSlug}/communication/email/${tmpl.id}`}>
+                            <Pencil className="h-3 w-3 mr-1" />
+                            Edit
+                          </Link>
+                        </Button>
+                      </div>
+                    )}
+                  </div>
                   <Switch
                     id={`email-${key}`}
                     checked={emailSettings[key]}
@@ -1248,6 +1323,9 @@ export function TicketEditor({
                 </div>
               );
             })}
+            {previewState.error && (
+              <p className="text-sm text-destructive">{previewState.error}</p>
+            )}
           </CardContent>
         </Card>
 
@@ -1436,6 +1514,16 @@ export function TicketEditor({
           outputHeight={600}
           fileName="square.png"
           title="Crop Square Image"
+        />
+      )}
+
+      {/* Email Preview Dialog */}
+      {previewState.html && (
+        <EmailPreviewDialog
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          html={previewState.html}
+          subject={previewState.subject ?? ""}
         />
       )}
     </div>
