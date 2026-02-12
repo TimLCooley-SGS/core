@@ -29,7 +29,8 @@ export function DonationPageForm({
   const { org } = useOrg();
   const [config, setConfig] = useState<DonationPageConfig>(initialConfig);
   const [newDenom, setNewDenom] = useState("");
-  const publicUrl = `https://${org.slug}.sgscore.com/donations`;
+  const posBase = process.env.NEXT_PUBLIC_POS_URL || "https://pos-five-lemon.vercel.app";
+  const publicUrl = `${posBase}/${org.slug}/donations`;
   const [state, formAction, isPending] = useActionState(
     updateDonationPageConfig,
     {},

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
-import Cropper from "react-easy-crop";
-import type { Area } from "react-easy-crop";
+import { useState, useRef, useCallback } from "react";
+import ReactCrop, { type Crop, type PixelCrop } from "react-image-crop";
+import "react-image-crop/dist/ReactCrop.css";
 import {
   Button,
   Dialog,
@@ -25,7 +25,6 @@ interface ImageCropperProps {
   title?: string;
 }
 
-// Defaults match the original card cropper values
 const DEFAULT_ASPECT = 3.375 / 2.125;
 const DEFAULT_OUTPUT_WIDTH = 675;
 
@@ -40,32 +39,47 @@ export function ImageCropper({
   fileName = "cropped.png",
   title = "Crop Image",
 }: ImageCropperProps) {
-  const finalHeight = outputHeight ?? Math.round(outputWidth / aspect);
-
   const isFreeAspect = aspect === undefined;
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const finalHeight = outputHeight ?? Math.round(outputWidth / (aspect || 1));
+
+  const imgRef = useRef<HTMLImageElement | null>(null);
+  const [crop, setCrop] = useState<Crop>();
+  const [completedCrop, setCompletedCrop] = useState<PixelCrop>();
   const [processing, setProcessing] = useState(false);
 
-  const onCropChange = useCallback(
-    (_: unknown, croppedArea: Area) => {
-      setCroppedAreaPixels(croppedArea);
+  const onImageLoad = useCallback(
+    (e: React.SyntheticEvent<HTMLImageElement>) => {
+      const img = e.currentTarget;
+      imgRef.current = img;
+
+      // Set initial crop to 80% centered
+      const { naturalWidth, naturalHeight } = img;
+      const cropAspect = isFreeAspect ? naturalWidth / naturalHeight : aspect;
+      const pctW = 80;
+      const pctH = Math.min(80, (pctW / cropAspect) * (naturalWidth / naturalHeight));
+      const adjustedW = Math.min(pctW, pctH * cropAspect * (naturalHeight / naturalWidth));
+
+      setCrop({
+        unit: "%",
+        x: (100 - adjustedW) / 2,
+        y: (100 - pctH) / 2,
+        width: adjustedW,
+        height: pctH,
+      });
     },
-    [],
+    [aspect, isFreeAspect],
   );
 
   async function handleSave() {
-    if (!croppedAreaPixels) return;
+    if (!completedCrop || !imgRef.current) return;
     setProcessing(true);
 
     try {
       let w = outputWidth;
       let h = finalHeight;
 
-      // For free aspect, compute output dimensions from the crop's actual ratio
-      if (isFreeAspect && croppedAreaPixels.width > 0 && croppedAreaPixels.height > 0) {
-        const cropAspect = croppedAreaPixels.width / croppedAreaPixels.height;
+      if (isFreeAspect && completedCrop.width > 0 && completedCrop.height > 0) {
+        const cropAspect = completedCrop.width / completedCrop.height;
         const maxDim = 800;
         if (cropAspect >= 1) {
           w = maxDim;
@@ -77,60 +91,47 @@ export function ImageCropper({
       }
 
       const file = await cropAndResize(
-        imageSrc,
-        croppedAreaPixels,
+        imgRef.current,
+        completedCrop,
         w,
         h,
         fileName,
       );
       onCropComplete(file);
     } catch {
-      // If cropping fails, fall back to the original
+      // If cropping fails, ignore
     } finally {
       setProcessing(false);
     }
   }
+
+  const description = isFreeAspect
+    ? "Drag corners to resize. The image will be scaled to fit within 800px."
+    : `Drag corners to resize. The image will be resized to ${outputWidth}x${finalHeight}px.`;
 
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>
-            Drag to reposition. Scroll or use the slider to zoom.
-            {isFreeAspect
-              ? " The image will be resized to fit within 800px."
-              : ` The image will be resized to ${outputWidth}x${finalHeight}px.`}
-          </DialogDescription>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
 
-        <div className="relative w-full bg-muted rounded-md overflow-hidden" style={{ height: 350 }}>
-          <Cropper
-            image={imageSrc}
+        <div className="flex justify-center bg-muted rounded-md overflow-hidden" style={{ maxHeight: 400 }}>
+          <ReactCrop
             crop={crop}
-            zoom={zoom}
-            minZoom={0.1}
-            maxZoom={3}
-            aspect={aspect}
-            onCropChange={setCrop}
-            onZoomChange={setZoom}
-            onCropComplete={onCropChange}
-            objectFit="contain"
-            restrictPosition={false}
-          />
-        </div>
-
-        <div className="flex items-center gap-3 px-1">
-          <span className="text-xs text-muted-foreground whitespace-nowrap">Zoom</span>
-          <input
-            type="range"
-            min={0.1}
-            max={3}
-            step={0.05}
-            value={zoom}
-            onChange={(e) => setZoom(Number(e.target.value))}
-            className="flex-1"
-          />
+            onChange={(c) => setCrop(c)}
+            onComplete={(c) => setCompletedCrop(c)}
+            aspect={isFreeAspect ? undefined : aspect}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={imageSrc}
+              alt="Crop preview"
+              onLoad={onImageLoad}
+              style={{ maxHeight: 400, maxWidth: "100%" }}
+            />
+          </ReactCrop>
         </div>
 
         <DialogFooter>
@@ -139,7 +140,7 @@ export function ImageCropper({
           </Button>
           <Button
             type="button"
-            disabled={processing}
+            disabled={processing || !completedCrop}
             onClick={handleSave}
           >
             {processing ? "Processing..." : "Crop & Upload"}
@@ -151,14 +152,12 @@ export function ImageCropper({
 }
 
 async function cropAndResize(
-  imageSrc: string,
-  crop: Area,
+  image: HTMLImageElement,
+  crop: PixelCrop,
   targetWidth: number,
   targetHeight: number,
   fileName: string,
 ): Promise<File> {
-  const image = await loadImage(imageSrc);
-
   const canvas = document.createElement("canvas");
   canvas.width = targetWidth;
   canvas.height = targetHeight;
@@ -166,12 +165,17 @@ async function cropAndResize(
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("Canvas not supported");
 
+  // react-image-crop PixelCrop values are relative to the displayed image size.
+  // Scale to natural image dimensions.
+  const scaleX = image.naturalWidth / image.width;
+  const scaleY = image.naturalHeight / image.height;
+
   ctx.drawImage(
     image,
-    crop.x,
-    crop.y,
-    crop.width,
-    crop.height,
+    crop.x * scaleX,
+    crop.y * scaleY,
+    crop.width * scaleX,
+    crop.height * scaleY,
     0,
     0,
     targetWidth,
@@ -187,14 +191,4 @@ async function cropAndResize(
   });
 
   return new File([blob], fileName, { type: "image/png" });
-}
-
-function loadImage(src: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    img.onload = () => resolve(img);
-    img.onerror = reject;
-    img.src = src;
-  });
 }

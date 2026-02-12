@@ -16,7 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@sgscore/ui";
-import { ChevronUp, ChevronDown, Eye } from "lucide-react";
+import { ChevronUp, ChevronDown, Eye, Trash2 } from "lucide-react";
 import { useHasCapability } from "@/components/org-provider";
 import { ImageCropper } from "@/components/image-cropper";
 import type { OrgBranding, PosNavItem, LogoVariant } from "@sgscore/types";
@@ -254,9 +254,6 @@ function LogoSlot({
           {uploadState.error || removeState.error}
         </p>
       )}
-      {(uploadState.success || removeState.success) && (
-        <p className="text-xs text-green-600">Done</p>
-      )}
 
       {canEdit && (
         <div className="flex gap-1">
@@ -282,11 +279,10 @@ function LogoSlot({
               type="button"
               variant="ghost"
               size="sm"
-              className="text-xs"
               disabled={isRemoving}
               onClick={handleRemove}
             >
-              {isRemoving ? "..." : "Remove"}
+              <Trash2 className="h-3.5 w-3.5 text-muted-foreground" />
             </Button>
           )}
         </div>
@@ -588,7 +584,7 @@ function PosNavigationSection({
                   /{item.key}
                 </span>
                 <a
-                  href={`https://${orgSlug}.sgscore.com/${item.key}`}
+                  href={`${process.env.NEXT_PUBLIC_POS_URL || "https://pos-five-lemon.vercel.app"}/${orgSlug}/${item.key}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={`View /${item.key}`}
