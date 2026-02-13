@@ -47,6 +47,14 @@ export {
 } from "./staff";
 
 export {
+  getPlatformSettings,
+  setPlatformSetting,
+  deletePlatformSetting,
+  uploadPlatformAsset,
+  deletePlatformAsset,
+} from "./platform-settings";
+
+export {
   ensureOrgAssetsBucket,
   uploadOrgLogo,
   deleteOrgLogo,
