@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useActionState } from "react";
+import { useState, useActionState, useTransition, useCallback } from "react";
 import {
-  Button,
   Card,
   CardContent,
   CardHeader,
@@ -12,6 +11,7 @@ import {
   Label,
   Switch,
 } from "@sgscore/ui";
+import { Loader2 } from "lucide-react";
 import type { PortalSettings, MembershipCardDesign } from "@sgscore/types/tenant";
 import { upsertPortalSettings } from "./actions";
 
@@ -28,7 +28,30 @@ export function SettingsTab({ orgSlug, settings, cardDesigns }: SettingsTabProps
     new Set(settings?.restricted_card_design_ids ?? []),
   );
 
-  const [state, formAction, pending] = useActionState(upsertPortalSettings, {});
+  const [state, formAction] = useActionState(upsertPortalSettings, {});
+  const [saving, startTransition] = useTransition();
+
+  const save = useCallback(
+    (published: boolean, cardIds: Set<string>) => {
+      const fd = new FormData();
+      fd.append("orgSlug", orgSlug);
+      if (settings?.id) fd.append("settingsId", settings.id);
+      fd.append("welcomeHeading", settings?.welcome_heading ?? "Welcome to Your Membership Portal");
+      fd.append("welcomeBody", settings?.welcome_body ?? "");
+      fd.append("buttonText", settings?.button_text ?? "Sign In");
+      fd.append("helperText", settings?.helper_text ?? "");
+      fd.append("accentColor", settings?.accent_color ?? "#4E2C70");
+      fd.append("isPublished", published ? "true" : "false");
+      fd.append("restrictedCardDesignIds", JSON.stringify([...cardIds]));
+      startTransition(() => formAction(fd));
+    },
+    [orgSlug, settings, formAction],
+  );
+
+  function handlePublishToggle(checked: boolean) {
+    setIsPublished(checked);
+    save(checked, restrictedCardDesignIds);
+  }
 
   function toggleCardRestriction(cardId: string) {
     setRestrictedCardDesignIds((prev) => {
@@ -38,23 +61,9 @@ export function SettingsTab({ orgSlug, settings, cardDesigns }: SettingsTabProps
       } else {
         next.add(cardId);
       }
+      save(isPublished, next);
       return next;
     });
-  }
-
-  function handleSave() {
-    const fd = new FormData();
-    fd.append("orgSlug", orgSlug);
-    if (settings?.id) fd.append("settingsId", settings.id);
-    // Pass current designer settings to preserve them
-    fd.append("welcomeHeading", settings?.welcome_heading ?? "Welcome to Your Membership Portal");
-    fd.append("welcomeBody", settings?.welcome_body ?? "");
-    fd.append("buttonText", settings?.button_text ?? "Sign In");
-    fd.append("helperText", settings?.helper_text ?? "");
-    fd.append("accentColor", settings?.accent_color ?? "#4E2C70");
-    fd.append("isPublished", isPublished ? "true" : "false");
-    fd.append("restrictedCardDesignIds", JSON.stringify([...restrictedCardDesignIds]));
-    formAction(fd);
   }
 
   return (
@@ -72,11 +81,15 @@ export function SettingsTab({ orgSlug, settings, cardDesigns }: SettingsTabProps
                 When published, members can access the portal login page.
               </p>
             </div>
-            <Switch
-              id="isPublished"
-              checked={isPublished}
-              onCheckedChange={(checked) => setIsPublished(checked === true)}
-            />
+            <div className="flex items-center gap-2">
+              {saving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+              <Switch
+                id="isPublished"
+                checked={isPublished}
+                onCheckedChange={handlePublishToggle}
+                disabled={saving}
+              />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -99,6 +112,7 @@ export function SettingsTab({ orgSlug, settings, cardDesigns }: SettingsTabProps
                     id={`cd-${cd.id}`}
                     checked={restrictedCardDesignIds.has(cd.id)}
                     onCheckedChange={() => toggleCardRestriction(cd.id)}
+                    disabled={saving}
                   />
                   <Label htmlFor={`cd-${cd.id}`}>{cd.name}</Label>
                 </div>
@@ -126,16 +140,13 @@ export function SettingsTab({ orgSlug, settings, cardDesigns }: SettingsTabProps
         </CardContent>
       </Card>
 
-      {/* Save */}
+      {/* Status */}
       {state.error && (
         <p className="text-sm text-destructive">{state.error}</p>
       )}
-      {state.success && (
+      {state.success && !saving && (
         <p className="text-sm text-green-600">Settings saved.</p>
       )}
-      <Button type="button" disabled={pending} onClick={handleSave}>
-        {pending ? "Saving..." : "Save Settings"}
-      </Button>
     </div>
   );
 }

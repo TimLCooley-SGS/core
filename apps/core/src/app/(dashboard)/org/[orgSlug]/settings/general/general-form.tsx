@@ -581,7 +581,7 @@ function PosNavigationSection({
                   className="flex-1"
                 />
                 <span className="text-xs text-muted-foreground">
-                  /{item.key}
+                  {item.key === "home" ? "/" : `/${item.key}`}
                 </span>
                 <a
                   href={item.key === "home" ? `${process.env.NEXT_PUBLIC_POS_URL || "https://pos-five-lemon.vercel.app"}/${orgSlug}` : `${process.env.NEXT_PUBLIC_POS_URL || "https://pos-five-lemon.vercel.app"}/${orgSlug}/${item.key}`}
