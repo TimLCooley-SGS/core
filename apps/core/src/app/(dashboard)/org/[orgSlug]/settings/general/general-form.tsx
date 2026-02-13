@@ -584,7 +584,7 @@ function PosNavigationSection({
                   /{item.key}
                 </span>
                 <a
-                  href={`${process.env.NEXT_PUBLIC_POS_URL || "https://pos-five-lemon.vercel.app"}/${orgSlug}/${item.key}`}
+                  href={item.key === "home" ? `${process.env.NEXT_PUBLIC_POS_URL || "https://pos-five-lemon.vercel.app"}/${orgSlug}` : `${process.env.NEXT_PUBLIC_POS_URL || "https://pos-five-lemon.vercel.app"}/${orgSlug}/${item.key}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   title={`View /${item.key}`}

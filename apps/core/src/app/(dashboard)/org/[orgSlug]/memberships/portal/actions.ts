@@ -48,6 +48,8 @@ export async function upsertPortalSettings(
     button_text: (formData.get("buttonText") as string) || "Sign In",
     helper_text: (formData.get("helperText") as string) || "",
     accent_color: (formData.get("accentColor") as string) || "#4E2C70",
+    is_published: formData.get("isPublished") === "true",
+    restricted_card_design_ids: parseIds(formData.get("restrictedCardDesignIds") as string),
     updated_by: auth.tenantPersonId,
   };
 

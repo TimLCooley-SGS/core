@@ -52,15 +52,10 @@ export function SettingsTab({ orgSlug, settings, cardDesigns }: SettingsTabProps
     fd.append("buttonText", settings?.button_text ?? "Sign In");
     fd.append("helperText", settings?.helper_text ?? "");
     fd.append("accentColor", settings?.accent_color ?? "#4E2C70");
+    fd.append("isPublished", isPublished ? "true" : "false");
+    fd.append("restrictedCardDesignIds", JSON.stringify([...restrictedCardDesignIds]));
     formAction(fd);
   }
-
-  // Note: is_published, portal_slug, and restricted_card_design_ids are
-  // saved via a separate settings-specific action. For now, they reuse
-  // the upsert action, but we need to add these fields to the upsert.
-  // TODO: For the initial build, these settings are displayed but
-  // full persistence for is_published, portal_slug, restricted_card_design_ids
-  // will be wired when those specific fields are added to the upsert action.
 
   return (
     <div className="max-w-2xl space-y-4">
