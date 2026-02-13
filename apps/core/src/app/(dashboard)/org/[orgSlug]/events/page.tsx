@@ -1,19 +1,10 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@sgscore/ui";
+import { redirect } from "next/navigation";
 
-export default function EventsPage() {
-  return (
-    <div className="space-y-6">
-      <h1 className="text-3xl font-heading font-bold">Events</h1>
-      <Card>
-        <CardHeader>
-          <CardTitle>Event Management</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-muted-foreground">
-            Event creation, scheduling, and booking will be built here.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
-  );
+export default async function EventsPage({
+  params,
+}: {
+  params: Promise<{ orgSlug: string }>;
+}) {
+  const { orgSlug } = await params;
+  redirect(`/org/${orgSlug}/events/list`);
 }

@@ -72,6 +72,13 @@ INSERT INTO capabilities (resource, action, key, description, category, sort_ord
 
   -- Billing
   ('billing', 'read',   'billing.read',   'View billing information', 'Billing', 10),
-  ('billing', 'manage', 'billing.manage', 'Manage billing & payments', 'Billing', 20)
+  ('billing', 'manage', 'billing.manage', 'Manage billing & payments', 'Billing', 20),
+
+  -- Events
+  ('events', 'create', 'events.create', 'Create events', 'Events', 10),
+  ('events', 'read',   'events.read',   'View events', 'Events', 20),
+  ('events', 'update', 'events.update', 'Edit events', 'Events', 30),
+  ('events', 'delete', 'events.delete', 'Delete events', 'Events', 40),
+  ('events', 'manage', 'events.manage', 'Full event management', 'Events', 50)
 
 ON CONFLICT (key) DO NOTHING;

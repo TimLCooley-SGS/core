@@ -443,6 +443,106 @@ export interface TicketTag {
   created_at: string;
 }
 
+/* ── Events ── */
+
+export type EventType = 'single' | 'multi_day' | 'recurring';
+export type EventStatus = 'draft' | 'active' | 'archived';
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
+export type RegistrationStatus = 'confirmed' | 'waitlisted' | 'cancelled' | 'pending_payment';
+
+export interface EventEmailSettings {
+  confirmation: boolean;
+  reminder_1day: boolean;
+  reminder_1hour: boolean;
+  followup: boolean;
+}
+
+export interface Event {
+  id: string;
+  name: string;
+  slug: string;
+  description: string | null;
+  event_type: EventType;
+  location_id: string | null;
+  banner_image_url: string | null;
+  square_image_url: string | null;
+  capacity: number | null;
+  is_free: boolean;
+  registration_required: boolean;
+  enable_check_in: boolean;
+  selling_channels: SellingChannels;
+  delivery_formats: DeliveryFormats;
+  email_settings: EventEmailSettings;
+  status: EventStatus;
+  created_by: string | null;
+  updated_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventRecurrenceRule {
+  id: string;
+  event_id: string;
+  frequency: RecurrenceFrequency;
+  days_of_week: number[];
+  start_time: string | null;
+  end_time: string | null;
+  start_date: string;
+  end_date: string | null;
+  occurrence_count: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventSchedule {
+  id: string;
+  event_id: string;
+  date: string;
+  start_time: string | null;
+  end_time: string | null;
+  is_all_day: boolean;
+  is_cancelled: boolean;
+  capacity_override: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventPriceType {
+  id: string;
+  event_id: string;
+  name: string;
+  price_cents: number;
+  tax_rate: number;
+  capacity: number | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventRegistration {
+  id: string;
+  event_id: string;
+  schedule_id: string;
+  person_id: string;
+  price_type_id: string | null;
+  status: RegistrationStatus;
+  quantity: number;
+  amount_cents: number;
+  stripe_payment_intent_id: string | null;
+  checked_in_at: string | null;
+  checked_in_by: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventTag {
+  id: string;
+  event_id: string;
+  tag_id: string;
+  created_at: string;
+}
+
 /* ── Contact Lists ── */
 
 export type ContactListType = 'smart' | 'static';
